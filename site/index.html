@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>TeleDash Pro</title>
+<meta name="description" content="An open-source home screen for rooted LG webOS TVs.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>TeleDash Pro</h1>
+  <p class="lead">An open-source home screen for rooted LG webOS TVs, installed through Homebrew Channel.</p>
+
+  <div class="card shot" role="img" aria-label="Screenshot placeholder">Screenshot coming soon</div>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>Big tiles for the apps you actually use, ordered by how often you open them.</li>
+    <li>Clock, weather, market indexes, today's calendar and countdowns at a glance.</li>
+    <li>Optional: make the remote's Home button open TeleDash Pro instead of LG's launcher.</li>
+    <li>Set it up from your phone by scanning a QR code on the TV. No account, no cloud service.</li>
+  </ul>
+
+  <h2>Add it to Homebrew Channel</h2>
+  <ol>
+    <li>On the TV, open <strong>Homebrew Channel</strong> and go to <strong>Settings</strong>.</li>
+    <li>Choose <strong>Add repository</strong> and enter this address:
+      <span class="url" id="repo-url">https://&lt;owner&gt;.github.io/&lt;repo&gt;/repo/apps.json</span>
+    </li>
+    <li>Go back to the app list, open <strong>TeleDash Pro</strong> and choose <strong>Install</strong>.</li>
+    <li>Launch it. On first start it offers to install a small helper (needs root) so you can
+      set it up from your phone and make Home open TeleDash Pro.</li>
+  </ol>
+  <p class="muted">Homebrew Channel needs a rooted TV. The dashboard itself also works without the
+    helper, with built-in defaults.</p>
+
+  <h2>Documentation</h2>
+  <p>Setup, Google Calendar sign-in, data feeds and troubleshooting are in the
+    <a id="docs-link" href="https://github.com/">documentation on GitHub</a>.</p>
+
+  <footer>TeleDash Pro is open source. Not affiliated with LG Electronics.</footer>
+</main>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "TeleDash Pro",
+  "appId": "com.teledashpro.dashboard",
+  "port": 8770,
+  "pagesBase": ""
+}

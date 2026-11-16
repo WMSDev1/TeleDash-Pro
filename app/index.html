@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TeleDash Pro</title>
+<style>
+  html { background: #101318; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden;
+    color: #f2f4f7; font-family: "LG Smart UI", "Helvetica Neue", Arial, sans-serif; }
+  #bg { position: absolute; left: 0; top: 0; z-index: -1; }
+  #top { display: flex; justify-content: space-between; align-items: flex-end; padding: 36px 100px 0; }
+  #clock { font-size: 120px; font-weight: 300; line-height: 1; }
+  #date { font-size: 34px; color: #d3d9e2; margin-top: 10px; }
+  #now { text-align: right; }
+  #temp { font-size: 96px; font-weight: 300; line-height: 1; }
+  #wx { font-size: 32px; color: #d3d9e2; margin-top: 10px; }
+  /* Offline indicator: amber line under the weather, only present when there is something to say. */
+  #net, #inet { color: #ffb300; }
+  #net { font-size: 28px; margin-top: 10px; }
+  #net:empty, #inet:empty { display: none; }
+  #net::before, #inet::before { content: ""; display: inline-block; width: 16px; height: 16px;
+    border-radius: 8px; background: #ffb300; margin-right: 12px; }
+
+  #grid { display: grid; gap: 22px; padding: 28px 100px 0; }
+  .tile { height: 150px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 600; color: #fff; box-sizing: border-box;
+    border: 2px solid #2a303a; transition: transform .12s;
+    text-align: center; padding: 0 16px; line-height: 1.15; overflow: hidden; }   /* long app names wrap */
+  .tile img { width: 130px; height: 130px; }
+  .tile.long { font-size: 28px; }
+  .tile.focus { transform: scale(1.08); border-color: #ffb300;
+    box-shadow: 0 0 0 6px #ffb300, 0 10px 30px rgba(0,0,0,.6); }
+
+  #forecast { display: flex; padding: 28px 100px 0; }   /* no flex `gap`: the TV's browser engine predates it */
+  .panel { background: rgba(16,19,24,0.72); border-radius: 16px; padding: 22px 26px; box-sizing: border-box; height: 372px; }
+  #periods { width: 640px; }
+  #days { flex: 1; margin-left: 28px; }
+  .ptitle { font-size: 24px; color: #a9b1bd; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+  .prow { display: flex; margin-bottom: 14px; }
+  .pcell { flex: 1; }
+  .pcell .when { font-size: 24px; color: #a9b1bd; }
+  .pcell .t { font-size: 50px; font-weight: 300; line-height: 1.15; }
+  .pcell .s { font-size: 24px; }
+  .pcell .p { font-size: 22px; color: #6fb7ff; }
+  .pcell.past { opacity: .4; }
+  /* Calendar rows (shown in the left panel in place of the Today/Tomorrow weather when a calendar is loaded). */
+  .arow { display: flex; font-size: 26px; line-height: 38px; white-space: nowrap; }
+  .arow .at { width: 172px; flex: none; color: #a9b1bd; }
+  .arow .as { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .arow.quiet { color: #a9b1bd; }
+  .agap { margin-top: 12px; }
+  #dayrow { display: flex; height: 290px; }
+  .day { flex: 1; text-align: center; border-left: 1px solid #262c36; padding: 6px 4px 0; }
+  .day:first-child { border-left: 0; }
+  .day .d { font-size: 26px; font-weight: 600; }
+  .day .n { font-size: 22px; color: #a9b1bd; }
+  .day .hi { font-size: 44px; font-weight: 300; margin-top: 22px; line-height: 1.1; }
+  .day .lo { font-size: 32px; color: #a9b1bd; }
+  .day .s { font-size: 22px; margin-top: 18px; min-height: 54px; }
+  .day .p { font-size: 22px; color: #6fb7ff; margin-top: 6px; }
+  /* Idle view: dim time and weather on black, drifting so nothing sits still on the OLED. */
+  #idle { display: none; position: absolute; left: 0; top: 0; width: 760px; opacity: .5;
+    transition: transform 55s linear; }
+  #iclock { font-size: 210px; font-weight: 200; line-height: 1; }
+  #idate { font-size: 44px; margin-top: 8px; }
+  #iwx { font-size: 44px; margin-top: 18px; color: #a9b1bd; }
+  #inet { font-size: 36px; margin-top: 14px; }
+  body.idle #top, body.idle #grid, body.idle #forecast, body.idle #status { display: none; }
+  body.idle #idle { display: block; }
+  #status { position: absolute; left: 100px; bottom: 14px; font-size: 24px; color: #7d8794; }
+
+  /* Countdown line under the date; air quality and weather warnings under the weather. */
+  #count, #icount, #bcount { color: #ffcf66; }
+  #count { font-size: 30px; margin-top: 8px; }
+  #count:empty, #icount:empty, #bcount:empty, #aq:empty, #alert:empty, #ialert:empty, #balert:empty { display: none; }
+  #aq { font-size: 32px; color: #a9b1bd; }
+  #aq::before { content: "  ·  "; color: #d3d9e2; }
+  #aq.warn, #aq.severe, #baq.warn { color: #ffb300; }
+  #aq.severe, #baq.severe { color: #ff6b6b; }
+  #alert, #ialert, #balert { color: #ffb300; font-size: 28px; margin-top: 8px; }
+  #alert.severe, #ialert.severe, #balert.severe { color: #ff6b6b; font-weight: 600; }
+  #alert::before, #ialert::before, #balert::before { content: "\26A0\FE0E  "; }
+  #icount { font-size: 36px; margin-top: 14px; }
+  #ialert { font-size: 36px; }
+
+  /* Market strip, bottom right. */
+  #market { position: absolute; right: 100px; bottom: 12px; font-size: 24px; color: #d3d9e2; white-space: nowrap; }
+  #market .q { margin-left: 40px; }
+  #market .ql { color: #8b95a3; margin-right: 10px; }
+  #market .qv { margin-right: 10px; }
+  #market .up { color: #4cd07d; }
+  #market .down { color: #ff6b6b; }
+  body.idle #market { display: none; }
+
+  /* Morning brief: full brightness, big and readable from across the room. */
+  #brief { display: none; padding: 70px 100px 0; }
+  body.brief #top, body.brief #grid, body.brief #forecast, body.brief #status { display: none; }
+  body.brief #brief { display: flex; }
+  #bleft { width: 860px; flex: none; }
+  #bclock { font-size: 220px; font-weight: 200; line-height: 1; }
+  #bdate { font-size: 52px; margin-top: 10px; }
+  #bcount { font-size: 38px; margin-top: 12px; }
+  #bnow { font-size: 56px; font-weight: 300; margin-top: 40px; }
+  #baq { font-size: 32px; color: #a9b1bd; margin-top: 10px; }
+  #baq:empty { display: none; }
+  #balert { font-size: 36px; }
+  #bperiods { margin-top: 30px; height: auto; }
+  #bright { flex: 1; margin-left: 60px; height: 880px; }
+  #bright .arow { font-size: 34px; line-height: 54px; }
+  #bright .arow .at { width: 210px; }
+  #bright .ptitle { font-size: 28px; }
+  /* Setup overlay (Set up tile, 0 or blue key) and the one-time helper install question. */
+  #setup { display: none; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 10;
+    background: rgba(8,10,14,0.96); }
+  body.setup #setup { display: flex; align-items: center; justify-content: center; }
+  #sqr { width: 420px; height: 420px; flex: none; margin-right: 80px; border-radius: 16px; overflow: hidden; background: #fff; }
+  #sqr:empty { display: none; }
+  #sqr svg { display: block; width: 420px; height: 420px; }
+  #stext { width: 980px; }
+  #stitle { font-size: 64px; font-weight: 300; line-height: 1.1; }
+  #smsg { font-size: 36px; color: #d3d9e2; margin-top: 26px; line-height: 1.35; }
+  #surl { font-size: 34px; color: #ffcf66; margin-top: 30px; font-family: Menlo, Consolas, monospace; word-break: break-all; }
+  #scode { font-size: 44px; margin-top: 18px; letter-spacing: 4px; }
+  #sbtns { margin-top: 44px; }
+  #sfoot { font-size: 26px; color: #7d8794; margin-top: 40px; }
+  #surl:empty, #scode:empty, #sbtns:empty, #sfoot:empty { display: none; }
+  .btn { display: inline-block; font-size: 36px; padding: 18px 54px; margin-right: 28px; border-radius: 14px;
+    background: #232a35; border: 2px solid #2a303a; }
+  .btn.focus { border-color: #ffb300; box-shadow: 0 0 0 6px #ffb300; }
+</style>
+</head>
+<body>
+  <canvas id="bg" width="1920" height="1080"></canvas>
+  <div id="top">
+    <div><div id="clock">--:--</div><div id="date"></div><div id="count"></div></div>
+    <div id="now"><div id="temp"></div><div><span id="wx"></span><span id="aq"></span></div><div id="alert"></div><div id="net"></div></div>
+  </div>
+  <div id="grid"></div>
+  <div id="forecast">
+    <div class="panel" id="periods"></div>
+    <div class="panel" id="days"><div class="ptitle">Next 10 days</div><div id="dayrow"></div></div>
+  </div>
+  <div id="idle"><div id="iclock"></div><div id="idate"></div><div id="icount"></div><div id="iwx"></div><div id="ialert"></div><div id="inet"></div></div>
+  <div id="brief">
+    <div id="bleft">
+      <div id="bclock"></div><div id="bdate"></div><div id="bcount"></div>
+      <div id="bnow"></div><div id="baq"></div><div id="balert"></div>
+      <div class="panel prow" id="bperiods"></div>
+    </div>
+    <div class="panel" id="bright"><div id="bagenda"></div></div>
+  </div>
+  <div id="status"></div>
+  <div id="market"></div>
+  <div id="setup"><div id="sqr"></div><div id="stext"><div id="stitle"></div><div id="smsg"></div><div id="surl"></div><div id="scode"></div><div id="sbtns"></div><div id="sfoot"></div></div></div>
+  <script src="config.js"></script>
+  <script src="helpers.js"></script>
+  <script src="settings.js"></script>
+  <script src="calendar.js"></script>
+  <script src="countdown.js"></script>
+  <script src="usage.js"></script>
+  <script src="qr.js"></script>
+  <script src="bg.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

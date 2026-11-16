@@ -1,0 +1,9 @@
+build/
+*.ipk
+*.sqlite
+*.key
+*.pem
+node_modules/
+.DS_Store
+# Local test data for the setup server (settings and secrets written by a dev run).
+.data/

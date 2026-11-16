@@ -1,0 +1,47 @@
+name: CI
+
+# Runs every repository check (scripts/check.sh: personal-data and secret scan, syntax, ES5,
+# JSON, unit tests) on pull requests and on main. It cannot check behaviour on a TV.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false   # no token in .git/config while npm tools install
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # A real parser for the ES5 check (scripts/es5.js); kept outside the repository.
+      - name: Install acorn for the ES5 check
+        run: |
+          npm install --no-save --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/tools" acorn@8.19.0
+          echo "NODE_PATH=$RUNNER_TEMP/tools/node_modules" >> "$GITHUB_ENV"
+      - run: sh scripts/check.sh
+      # Installed TVs only update to a newer version, so a pull request that changes what is
+      # packaged (app/, service/, kiosk/) must also raise the version in app/appinfo.json.
+      - name: Version raised when the package changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --quiet "$BASE" HEAD -- app/ service/ kiosk/; then echo "package unchanged"; exit 0; fi
+          if ! git cat-file -e "$BASE:app/appinfo.json" 2>/dev/null; then echo "no app/appinfo.json on the base branch"; exit 0; fi
+          old=$(git show "$BASE:app/appinfo.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')
+          new=$(node -p 'require("./app/appinfo.json").version')
+          node -e 'const v=s=>s.split(".").map(Number),[a,b]=[v(process.argv[1]),v(process.argv[2])];
+            for(let i=0;i<3;i++){if((b[i]||0)>(a[i]||0))process.exit(0);if((b[i]||0)<(a[i]||0))break}
+            console.error("app/, service/ or kiosk/ changed but version "+process.argv[2]+" is not newer than "+process.argv[1]+" - raise it in app/appinfo.json");process.exit(1)' "$old" "$new"
+          echo "version $old -> $new"

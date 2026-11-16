@@ -1,0 +1,137 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (equal to "version" in app/appinfo.json) builds the ipk, publishes a
+# GitHub Release with the ipk and its Homebrew Channel manifest, and deploys the project site
+# with the Homebrew Channel repository (repo/apps.json) to GitHub Pages.
+# One-time repository settings: Settings > Pages > Source: GitHub Actions; then Settings >
+# Environments > github-pages > Deployment branches and tags: add a tag rule "v*" (by default
+# only the default branch may deploy, and this job runs from a tag).
+# Optional repository variable TELEDASH_PAGES_BASE overrides the Pages address (custom domain).
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      ipk: ${{ steps.meta.outputs.ipk }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false   # no token in .git/config while npm tools install
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Version must equal the tag
+        id: meta
+        env:
+          PAGES_BASE_OVERRIDE: ${{ vars.TELEDASH_PAGES_BASE }}
+        run: |
+          VER=$(node -p 'require("./app/appinfo.json").version')
+          ID=$(node -p 'require("./project.json").appId')
+          case "$GITHUB_REF_NAME" in
+            "v$VER") ;;
+            *) echo "tag $GITHUB_REF_NAME does not match app/appinfo.json version $VER" >&2; exit 1 ;;
+          esac
+          OWNER=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr 'A-Z' 'a-z')
+          REPO=${GITHUB_REPOSITORY#*/}
+          if [ -n "$PAGES_BASE_OVERRIDE" ]; then BASE=${PAGES_BASE_OVERRIDE%/}
+          elif [ "$(printf '%s' "$REPO" | tr 'A-Z' 'a-z')" = "$OWNER.github.io" ]; then BASE="https://$OWNER.github.io"
+          else BASE="https://$OWNER.github.io/$REPO"; fi
+          {
+            echo "version=$VER"
+            echo "ipk=${ID}_${VER}_all.ipk"
+            echo "base=$BASE"
+          } >> "$GITHUB_OUTPUT"
+          echo "version $VER, pages $BASE"
+
+      - name: Install acorn for the ES5 check
+        run: |
+          npm install --no-save --no-audit --no-fund --ignore-scripts --prefix "$RUNNER_TEMP/tools" acorn@8.19.0
+          echo "NODE_PATH=$RUNNER_TEMP/tools/node_modules" >> "$GITHUB_ENV"
+      - run: sh scripts/check.sh
+
+      # pagesBase turns on Google sign-in and automatic updates in the packaged app.
+      - name: Fill pagesBase in project.json
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+        run: |
+          node -e 'const fs=require("fs"),p=JSON.parse(fs.readFileSync("project.json","utf8"));
+            p.pagesBase=process.env.BASE; fs.writeFileSync("project.json", JSON.stringify(p,null,2)+"\n")'
+          cat project.json
+
+      - name: Install the webOS packager
+        # Exact version, no install scripts (its only one chmods config files; packaging works
+        # without it): this job builds what TVs later run as root.
+        run: npm install --global --no-audit --no-fund --ignore-scripts @webos-tools/cli@3.2.6
+
+      - name: Build the ipk
+        env:
+          EXPECT_VERSION: ${{ steps.meta.outputs.version }}
+        run: bash scripts/build.sh
+
+      - name: Homebrew Channel manifest and repository index
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+          IPK: ${{ steps.meta.outputs.ipk }}
+        run: |
+          rm -rf _site && mkdir -p _site
+          cp -R site/. _site/
+          node scripts/manifest.js --ipk "build/$IPK" --out _site/repo --base "$BASE" \
+            --ipk-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$IPK" \
+            --source-url "https://github.com/$GITHUB_REPOSITORY"
+          mkdir -p dist
+          cp "build/$IPK" _site/repo/*.manifest.json dist/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-files
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _site/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-files
+          path: dist/
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "TeleDash Pro $VERSION" --generate-notes
+
+  # After the Release, so the ipkUrl in the published manifest already resolves.
+  pages:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

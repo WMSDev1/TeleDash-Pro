@@ -1,0 +1,10 @@
+#!/bin/sh
+# TeleDash Pro boot hook. install.sh writes a copy of this file to
+# /var/lib/webosbrew/init.d/90-teledash with the app and data paths filled in; Homebrew Channel
+# runs it at boot. It starts the helper service and, if enabled, the kiosk.
+# If the app has been uninstalled (start.sh is gone) it does nothing, so a leftover hook is harmless.
+APPDIR="@APPDIR@"
+[ -f "$APPDIR/system/start.sh" ] || exit 0
+# Background it so boot never waits on us; start.sh sends its children's output to /tmp logs.
+TELEDASH_DATA="@DATA@" sh "$APPDIR/system/start.sh" < /dev/null > /dev/null 2>&1 &
+exit 0

@@ -1,0 +1,8 @@
+# Workflows pin every action to a full commit SHA (a moved tag cannot change what runs);
+# Dependabot proposes the updates as pull requests.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

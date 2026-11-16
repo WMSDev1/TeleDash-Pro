@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>TeleDash Pro setup</title>
+<link rel="stylesheet" href="/setup.css">
+</head>
+<body>
+<header>
+  <h1>TeleDash Pro</h1>
+  <p class="sub">Setting up this TV. Changes show on the TV within half a minute.</p>
+  <p id="banner" class="banner" hidden></p>
+</header>
+
+<main id="main" hidden>
+
+<section id="calendar">
+  <h2>Calendar</h2>
+  <div class="choices" role="radiogroup" aria-label="Calendar source">
+    <label><input type="radio" name="calsource" value="none"> None</label>
+    <label><input type="radio" name="calsource" value="ical"> iCal link</label>
+    <label><input type="radio" name="calsource" value="google"> Google</label>
+  </div>
+
+  <div id="cal-ical" class="panel" hidden>
+    <p class="help">Paste your calendar's secret address in iCal format (Google: Settings → your calendar → "Secret address in iCal format"; iCloud: share calendar → Public Calendar link). It is stored on the TV only and never shown again.</p>
+    <p class="state" id="ical-state"></p>
+    <label class="field">Calendar link<input id="ical-url" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://… or webcal://…"></label>
+    <div class="row">
+      <button id="ical-save">Save link</button>
+      <button id="ical-remove" class="danger">Disconnect</button>
+    </div>
+  </div>
+
+  <div id="cal-google" class="panel" hidden>
+    <p id="google-unavailable" class="help" hidden>Google sign-in is not available in this build of TeleDash Pro. Use an iCal link instead, or install a release build.</p>
+    <div id="google-steps">
+      <p class="help">Google needs your own (free) Google Cloud OAuth client of type <b>Web application</b>. Add this as an authorised redirect URI:</p>
+      <p class="code" id="google-redirect"></p>
+      <p class="state" id="google-state"></p>
+      <label class="field">Client ID<input id="google-id" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="….apps.googleusercontent.com"></label>
+      <label class="field">Client secret<input id="google-secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="row">
+        <button id="google-save">Save keys</button>
+        <button id="google-signin" class="primary">Sign in with Google</button>
+      </div>
+      <div id="google-cals" hidden>
+        <h3>Calendars to show</h3>
+        <div id="google-cal-list" class="checks"></div>
+        <button id="google-cals-save">Save calendars</button>
+      </div>
+      <button id="google-remove" class="danger">Disconnect Google</button>
+    </div>
+  </div>
+  <p class="msg" id="calendar-msg" role="status"></p>
+</section>
+
+<section id="weather">
+  <h2>Weather</h2>
+  <p class="state" id="weather-state"></p>
+  <div class="row">
+    <input id="city" type="search" placeholder="City or town" autocomplete="off" aria-label="City or town">
+    <button id="city-search">Search</button>
+  </div>
+  <ul id="city-results" class="results"></ul>
+  <div class="row">
+    <button id="use-location">Use my location</button>
+    <button id="weather-off" class="danger">Turn weather off</button>
+  </div>
+  <label class="check"><input type="checkbox" id="fahrenheit"> Show °F (otherwise °C)</label>
+  <label class="check"><input type="checkbox" id="alert-warnings"> Show weather warnings (US only)</label>
+  <label class="check"><input type="checkbox" id="alert-air"> Show air quality</label>
+  <button id="weather-save">Save weather options</button>
+  <p class="help">The location is rounded to about 10 km before it is saved.</p>
+  <p class="msg" id="weather-msg" role="status"></p>
+</section>
+
+<section id="tiles">
+  <h2>Tiles</h2>
+  <div class="choices" role="radiogroup" aria-label="Which apps">
+    <label><input type="radio" name="tilemode" value="auto"> Automatic</label>
+    <label><input type="radio" name="tilemode" value="pick"> Pick apps</label>
+  </div>
+  <p class="help" id="tiles-auto-help">Automatic shows the TV's installed apps, most used first, with HDMI 1 and All apps at the end.</p>
+  <div id="tiles-pick" hidden>
+    <ol id="tile-list" class="tiles"></ol>
+    <div class="row">
+      <select id="tile-add-select" aria-label="App to add"></select>
+      <button id="tile-add">Add</button>
+    </div>
+    <p class="help">★ keeps a tile at the end, in this order. "All apps" is always kept: it is the way out to the TV's own menu.</p>
+  </div>
+  <label class="field">Order<select id="tile-order">
+    <option value="daily">By use (re-sorted daily)</option>
+    <option value="fixed">Fixed (as listed)</option>
+  </select></label>
+  <label class="field">Tiles per row<input id="columns" type="number" min="2" max="10" inputmode="numeric"></label>
+  <button id="tiles-save">Save tiles</button>
+  <p class="msg" id="tiles-msg" role="status"></p>
+</section>
+
+<section id="feed">
+  <h2>Data feed</h2>
+  <p class="help">A small number line on the dashboard (for example an account value) read from a JSON or CSV file. Use an https:// address or <code>github:owner/repo/path</code> (add <code>@branch</code> for a branch).</p>
+  <label class="check"><input type="checkbox" id="feed-enabled"> Show the data feed</label>
+  <label class="field">Title<input id="feed-title" maxlength="40" placeholder="Account"></label>
+  <label class="field">Address<input id="feed-url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://… or github:owner/repo/file.json"></label>
+  <div class="choices" role="radiogroup" aria-label="Format">
+    <label><input type="radio" name="feedformat" value="json"> TeleDash JSON</label>
+    <label><input type="radio" name="feedformat" value="csv"> CSV</label>
+  </div>
+  <div id="feed-csv" hidden>
+    <p class="help">Column names in the CSV's header row. The last row with a value is shown; its change is against the last row with an earlier date.</p>
+    <label class="field">Date column<input id="csv-date" autocapitalize="off"></label>
+    <label class="field">Value column<input id="csv-value" autocapitalize="off"></label>
+    <label class="field">Deposits/withdrawals column (optional, running total)<input id="csv-flows" autocapitalize="off"></label>
+    <label class="field">Time column (optional)<input id="csv-time" autocapitalize="off"></label>
+  </div>
+  <button id="feed-save">Save data feed</button>
+  <h3>Access token (optional)</h3>
+  <p class="state" id="token-state"></p>
+  <label class="field">Token<input id="feed-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="For private files only"></label>
+  <div class="row">
+    <button id="token-save">Save token</button>
+    <button id="token-remove" class="danger">Disconnect</button>
+  </div>
+  <p class="msg" id="feed-msg" role="status"></p>
+</section>
+
+<section id="morning">
+  <h2>Morning hours</h2>
+  <p class="help">During these hours the TV shows a bright morning brief instead of dimming.</p>
+  <fieldset>
+    <legend><label class="check"><input type="checkbox" id="wd-on"> Weekdays</label></legend>
+    <div class="row"><label class="field">From<input type="time" id="wd-from"></label><label class="field">To<input type="time" id="wd-to"></label></div>
+  </fieldset>
+  <fieldset>
+    <legend><label class="check"><input type="checkbox" id="we-on"> Weekends</label></legend>
+    <div class="row"><label class="field">From<input type="time" id="we-from"></label><label class="field">To<input type="time" id="we-to"></label></div>
+  </fieldset>
+  <button id="morning-save">Save morning hours</button>
+  <p class="msg" id="morning-msg" role="status"></p>
+</section>
+
+<section id="countdowns">
+  <h2>Countdowns</h2>
+  <label class="check"><input type="checkbox" id="cd-holidays"> Include holidays</label>
+  <label class="field">Show when within (days)<input id="cd-within" type="number" min="1" max="366" inputmode="numeric"></label>
+  <ul id="cd-list" class="list"></ul>
+  <div class="row">
+    <input id="cd-title" placeholder="What" maxlength="60" aria-label="Countdown title">
+    <input id="cd-date" type="date" aria-label="Date">
+  </div>
+  <label class="check"><input type="checkbox" id="cd-yearly"> Every year</label>
+  <div class="row">
+    <button id="cd-add">Add</button>
+    <button id="cd-save" class="primary">Save countdowns</button>
+  </div>
+  <p class="msg" id="countdowns-msg" role="status"></p>
+</section>
+
+<section id="screen">
+  <h2>Screen</h2>
+  <label class="field">Dim after (seconds without a button press)<input id="idle" type="number" min="10" max="3600" inputmode="numeric"></label>
+  <label class="check"><input type="checkbox" id="market-show"> Show the market strip</label>
+  <button id="screen-save">Save</button>
+  <p class="msg" id="screen-msg" role="status"></p>
+</section>
+
+<section id="home">
+  <h2>Home button</h2>
+  <label class="check"><input type="checkbox" id="home-on"> Open TeleDash when Home is pressed</label>
+  <label class="field">Delay before TeleDash opens (seconds, 0–30)<input id="home-delay" type="number" min="0" max="30" inputmode="numeric"></label>
+  <button id="home-save">Save</button>
+  <p class="msg" id="home-msg" role="status"></p>
+</section>
+
+<section id="updates">
+  <h2>Updates</h2>
+  <p class="state" id="update-state"></p>
+  <label class="check"><input type="checkbox" id="update-auto"> Install updates automatically</label>
+  <div class="row">
+    <button id="update-save">Save</button>
+    <button id="update-now">Update now</button>
+  </div>
+  <p class="msg" id="updates-msg" role="status"></p>
+</section>
+
+</main>
+<footer><p id="version"></p></footer>
+<script src="/setup.js"></script>
+</body>
+</html>
