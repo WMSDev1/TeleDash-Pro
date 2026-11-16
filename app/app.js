@@ -125,6 +125,7 @@
   function launch(a, lgModeSet) {
     if (a.setup) { openSetup(); return; }
     if (a.night) { goNight(); return; }
+    if (a.brief) { goBrief(); return; }
     if (!window.WebOSServiceBridge && !window.PalmServiceBridge) { say("Not running on the TV — would launch " + a.id); return; }
     // Exit tile ("All apps"): tell the kiosk script to let the LG home screen stay, by writing the
     // LG-mode flag as root. The script deletes it as soon as any other app comes to the front.
@@ -162,6 +163,17 @@
     setTimeout(drift, 100);
   }
   function inMorning(now) { return qm || Helpers.inMorning(CONFIG.morning, now || new Date()); }
+  // The brief chosen by hand (Morning brief tile, green button) at any hour. It stays until a
+  // button press or for BRIEF_MS, then the screen goes to standby as usual (night mode at night).
+  var BRIEF_MS = 15 * 60000, briefUntil = 0;
+  function goBrief() {
+    clearTimeout(idleTimer);
+    endNight();
+    briefUntil = Date.now() + BRIEF_MS;
+    holdIdle = Date.now() + 3000;                              // the pointer click that chose it
+    showBrief();
+    idleTimer = setTimeout(function () { briefUntil = 0; goIdle(); }, BRIEF_MS);
+  }
   function showBrief() {
     document.body.classList.remove("idle"); document.body.classList.add("brief");
     setWeatherBackgroundPaused(false);
@@ -191,6 +203,7 @@
   function wake() {                                            // returns true if it was idle or showing the brief
     var was = isIdle() || isBrief();
     endNight();
+    briefUntil = 0;
     if (was) { document.body.classList.remove("idle"); document.body.classList.remove("brief"); setWeatherBackgroundPaused(false); }
     if (pendingGrid) { pendingGrid = false; buildGrid(tileList()); }
     clearTimeout(idleTimer);
@@ -209,7 +222,7 @@
     }
     else if (isIdle() && !isBrief() && nightHours()) { goNight(); return; }
     if (isIdle() && inMorning()) showBrief();
-    else if (isBrief() && !inMorning()) goIdle();
+    else if (isBrief() && !inMorning() && Date.now() >= briefUntil) goIdle();
     else if (isBrief()) renderBrief();
     dailyOrder();
   }, 60000);
@@ -243,6 +256,7 @@
     else if (k === 13) launch(apps[focus]);                                  // OK
     else if (k === 48 || k === 96 || k === 406) openSetup();                 // 0 or the blue key
     else if (k === 403) goNight();                                            // red key: night mode
+    else if (k === 404) goBrief();                                            // green key: morning brief
     else return;
     e.preventDefault();
   });
@@ -752,7 +766,7 @@
     setIdleMs();
     buildGrid(tileList());
     tick(); weather(); alerts(); air(); market(); calendar(); feed();
-    if (isBrief() && !inMorning()) goIdle();
+    if (isBrief() && !inMorning() && Date.now() >= briefUntil) goIdle();
     if (!isIdle() && !isBrief()) wake();
   }
   function onStatus(up) {
@@ -773,6 +787,7 @@
   // idle view instead of waiting for the idle timer. Works for a fresh launch and a relaunch.
   function launchIdle(p) {
     if (typeof p === "string") { try { p = JSON.parse(p || "{}"); } catch (e) { p = {}; } }
+    if (p && p.brief) { setTimeout(goBrief, 300); return; }
     if (p && p.night) { holdIdle = Date.now() + 10000; [300, 1500, 4000].forEach(function (ms) { setTimeout(function () { if (!isNight()) goNight(); }, ms); }); return; }
     if (!(p && p.idle)) return;
     holdIdle = Date.now() + 10000;

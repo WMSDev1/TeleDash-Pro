@@ -30,15 +30,18 @@ const tv = [{ id: "a.app", title: "A", largeIcon: "/usr/palm/applications/a.app/
   { id: "b.app", title: "B", icon: "/x/icon.png" }, { id: "hid", title: "H", visible: false }, { id: "nw", title: "N", noWindow: true },
   { id: "com.webos.app.settings", title: "S" }, { id: "com.webos.app.hdmi1", title: "HDMI1" }, { id: "com.teledashpro.dashboard", title: "Us" }];
 let t = H.tiles(null, tv);
-assert.deepStrictEqual(t.map(x => x.id), ["a.app", "b.app", "com.webos.app.hdmi1", "teledash.setup", "teledash.night", "com.webos.app.home"]);
+assert.deepStrictEqual(t.map(x => x.id), ["a.app", "b.app", "com.webos.app.hdmi1", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
 assert.strictEqual(t[0].logo, "http://127.0.0.1:8770/icons/a.app"); assert.strictEqual(t[0].color, "#111111");
-assert.strictEqual(t[1].color, "#3d4450"); assert.strictEqual(t[5].exit, true); assert.strictEqual(t[3].setup, true); assert.strictEqual(t[4].night, true);
+assert.strictEqual(t[1].color, "#3d4450"); assert.strictEqual(t[6].exit, true); assert.strictEqual(t[3].setup, true); assert.strictEqual(t[4].brief, true); assert.strictEqual(t[5].night, true);
 // A chosen list keeps its order; HDMI 1 only when listed; Set up always just before All apps.
 t = H.tiles([{ id: "com.webos.app.hdmi1", title: "Console" }, { id: "b.app", title: "Bee", color: "#222" }], tv);
-assert.deepStrictEqual(t.map(x => x.title), ["Console", "Bee", "Set up", "Night", "All apps"]); assert.strictEqual(t[1].logo, "http://127.0.0.1:8770/icons/b.app");
+assert.deepStrictEqual(t.map(x => x.title), ["Console", "Bee", "Set up", "Morning brief", "Night", "All apps"]); assert.strictEqual(t[1].logo, "http://127.0.0.1:8770/icons/b.app");
 t = H.tiles([{ id: "com.webos.app.home", title: "All apps", exit: true }, { id: "b.app", title: "B" }], tv);
-assert.deepStrictEqual(t.map(x => x.id), ["teledash.setup", "teledash.night", "com.webos.app.home", "b.app"]); assert.strictEqual(t[2].exit, true);
-assert.deepStrictEqual(H.tiles([{ id: "b.app", title: "B" }], tv).map(x => x.id), ["b.app", "teledash.setup", "teledash.night", "com.webos.app.home"]);
+assert.deepStrictEqual(t.map(x => x.id), ["teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home", "b.app"]); assert.strictEqual(t[3].exit, true);
+assert.deepStrictEqual(H.tiles([{ id: "b.app", title: "B" }], tv).map(x => x.id), ["b.app", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
+// A Morning brief entry saved in a chosen list is ignored: the fixed tile is always added once.
+assert.strictEqual(H.tiles([{ id: "teledash.brief", title: "X" }, { id: "b.app" }], tv).filter(x => x.id === "teledash.brief").length, 1);
+assert.ok(H.pinnedIds(null, []).indexOf("teledash.brief") >= 0);
 assert.deepStrictEqual(H.tiles(null, null).map(x => x.id), H.FIXED);
 // Icons as webOS 6 reports them: relative to folderPath (seen on an LG C1).
 assert.strictEqual(H.iconUrl({ id: "com.peacock.tv", largeIcon: "images/largeIcon.png" }), "http://127.0.0.1:8770/icons/com.peacock.tv");
@@ -78,8 +81,8 @@ assert.strictEqual(H.inMorning({ weekdays: null, weekends: null }, new Date(2026
 // Usage.order with fixed tiles
 const U = require(A + "usage.js");
 assert.deepStrictEqual(U.order(H.tiles(null, tv), { "b.app": 10 }, H.pinnedIds(null, D.pinned)).map(x => x.id),
-  ["b.app", "a.app", "com.webos.app.hdmi1", "teledash.setup", "teledash.night", "com.webos.app.home"]);
+  ["b.app", "a.app", "com.webos.app.hdmi1", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
 const picked = [{ id: "b.app", title: "B" }, { id: "a.app", title: "A" }, { id: "com.webos.app.home", title: "All apps", exit: true }];
 assert.deepStrictEqual(U.order(H.tiles(picked, tv), { "a.app": 10 }, H.pinnedIds(picked, ["com.webos.app.home"])).map(x => x.id),
-  ["a.app", "b.app", "teledash.setup", "teledash.night", "com.webos.app.home"]);
+  ["a.app", "b.app", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
 console.log("helpers ok");

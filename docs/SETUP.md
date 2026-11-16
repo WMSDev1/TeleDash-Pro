@@ -42,9 +42,9 @@ Under **Alerts** you can turn off:
 
 - **Automatic** (the default): every app installed on the TV that is meant to be opened by a
   person, ordered by how much you use it. The order is updated once a day, never while you
-  are looking at the screen. `HDMI 1`, `Set up`, `Night` and `All apps` stay pinned at the end.
+  are looking at the screen. `HDMI 1`, `Set up`, `Morning brief`, `Night` and `All apps` stay pinned at the end.
 - **Choose my own**: pick apps from the TV's list and put them in order. `HDMI 1` shows only if
-  you add it; `Set up` and `Night` always sit just before `All apps`.
+  you add it; `Set up`, `Morning brief` and `Night` always sit just before `All apps`.
 - **Columns**: the fewest tiles per row (6 by default). Tiles always fit in two rows, so with
   more apps the row gets longer and the tiles smaller.
 
@@ -87,6 +87,10 @@ alerts) instead of dimming. Defaults:
 
 Times are 24-hour, in the TV's own time zone. Turn either group off to keep the normal dim
 idle view on those days.
+
+To see the brief at any other time, choose the **Morning brief** tile or press the remote's
+**green** button. It stays for 15 minutes, or until you press a button, then the screen goes to
+its usual standby.
 
 ## 8. Countdowns
 

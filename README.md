@@ -13,8 +13,8 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
 
 - **App tiles.** Automatic by default: the apps installed on your TV, ordered by how often you
   use them (re-sorted once a day, never while you are looking). Or pick and order your own.
-  Automatic tiles end with `HDMI 1`, `Set up`, `Night` and `All apps`; in your own list `Set up`
-  and `Night` always sit just before `All apps`.
+  Automatic tiles end with `HDMI 1`, `Set up`, `Morning brief`, `Night` and `All apps`; in your
+  own list `Set up`, `Morning brief` and `Night` always sit just before `All apps`.
 - **Clock** and date.
 - **Weather** for a place you choose, in Celsius or Fahrenheit.
 - **Alerts**: official weather warnings and air quality for that place. Each can be turned off.
@@ -23,7 +23,8 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
 - **Data feed**: one line of numbers from a JSON or CSV file you host, for example an account
   balance or a home sensor. See [docs/DATA-FEED.md](docs/DATA-FEED.md).
 - **Morning brief**: during the hours you choose, the screen shows a full-brightness summary of
-  the day instead of going dim.
+  the day instead of going dim. Open it any time with the **Morning brief** tile or the remote's
+  **green** button; it stays for 15 minutes or until you press a button.
 - **Countdowns**: days until holidays and your own dates.
 - **Idle view**: after two minutes without a button press, a dim clock and weather that drift
   slowly around the screen.
