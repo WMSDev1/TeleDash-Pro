@@ -89,9 +89,13 @@
     $("google-unavailable").hidden = ST.google.available;
     $("google-steps").hidden = !ST.google.available;
     $("google-redirect").textContent = ST.google.redirectUri || "";
+    var canSignIn = ST.google.builtIn || st.googleClient;
     $("google-state").textContent = st.googleSignedIn ? "Signed in to Google." :
-      st.googleClient ? "Keys saved. Now sign in with Google." : "No Google keys saved yet.";
-    $("google-signin").disabled = !st.googleClient;
+      canSignIn ? "Tap Sign in with Google, then pick the calendars to show." :
+      "Open Advanced below and add your own Google client first.";
+    $("google-signin").disabled = !canSignIn;
+    $("google-warning").hidden = !!st.googleSignedIn;
+    if (!ST.google.builtIn) $("google-own").open = true;          // the only way to sign in
     $("google-cals").hidden = !st.googleSignedIn;
     $("token-state").textContent = st.feedToken ? "A token is saved." : "No token saved.";
     var u = ST.update;

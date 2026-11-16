@@ -45,6 +45,20 @@ rm -rf "$STAGE"
 copy_tree app "$STAGE"
 cp project.json "$STAGE/project.json"
 copy_tree service "$STAGE/server"
+# The project's Google sign-in client (ADR-31): from $TELEDASH_GOOGLE_CLIENT (the release job's
+# secret, the JSON text) or a local google-client.json. Never in git. Without it the package
+# still works; the phone page then offers only an owner's own client.
+if [ -n "${TELEDASH_GOOGLE_CLIENT:-}" ]; then printf '%s' "$TELEDASH_GOOGLE_CLIENT" > "$STAGE/google-client.json"
+elif [ -f google-client.json ]; then cp google-client.json "$STAGE/google-client.json"; fi
+if [ -f "$STAGE/google-client.json" ]; then
+  node -e 'const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")),w=j.web||j.installed||j;
+    if(!/\.apps\.googleusercontent\.com$/.test(w.client_id||w.clientId||"")||!(w.client_secret||w.clientSecret))process.exit(1)' \
+    "$STAGE/google-client.json" || die "google-client.json is not a Google OAuth client file"
+  chmod 644 "$STAGE/google-client.json"
+  echo "Google sign-in client included"
+else
+  echo "no Google sign-in client (google-client.json): sign-in needs an owner's own client"
+fi
 copy_tree kiosk "$STAGE/system"
 # The TV runs these through sh, but keep them executable for anyone running them directly.
 find "$STAGE/system" -type f -exec chmod 755 {} +

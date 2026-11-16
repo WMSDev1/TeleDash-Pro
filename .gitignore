@@ -1,5 +1,8 @@
 build/
 *.ipk
+# The project's Google sign-in client: built into release packages, never committed (ADR-31).
+google-client.json
+client_secret_*.json
 *.sqlite
 *.key
 *.pem

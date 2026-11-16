@@ -23,7 +23,7 @@ IFS='
 pick() { printf '%s\n' "$files" | grep -E "$1" || true; }
 
 # 1. Files that must never be committed.
-leaked=$(pick '(^|/)(secrets\.json|id_rsa|id_ed25519|denylist\.txt)$|\.(ipk|sqlite|key|pem|p12)$')
+leaked=$(pick '(^|/)(secrets\.json|google-client\.json|client_secret_[^/]*\.json|id_rsa|id_ed25519|denylist\.txt)$|\.(ipk|sqlite|key|pem|p12)$')
 [ -z "$leaked" ] && ok "no secret-bearing files" || bad "files that must stay local: $leaked"
 
 # 2. Personal data and secrets inside files (generic rules + optional local denylist).

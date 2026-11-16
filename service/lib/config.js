@@ -16,6 +16,16 @@ var project = readJson(path.join(ROOT, "project.json")) || {};
 // In a package appinfo.json sits at the root; in the repository it is app/appinfo.json.
 var appinfo = readJson(path.join(ROOT, "appinfo.json")) || readJson(path.join(ROOT, "app", "appinfo.json")) || {};
 
+// The project's Google sign-in client, built into release packages as google-client.json (never
+// in git: scripts/build.sh writes it from a local file or the release secret). Accepts the file
+// Google Cloud Console downloads ({"web": {"client_id", "client_secret"}}) or {clientId, clientSecret}.
+function parseGoogleClient(j) {
+  if (!j || typeof j !== "object") return null;
+  var w = j.web || j.installed || j;
+  var id = String(w.client_id || w.clientId || "").trim(), secret = String(w.client_secret || w.clientSecret || "").trim();
+  return /^[\w.-]+\.apps\.googleusercontent\.com$/.test(id) && secret ? { clientId: id, clientSecret: secret } : null;
+}
+
 var envPort = parseInt(process.env.TELEDASH_PORT, 10);
 var port = envPort > 0 && envPort < 65536 ? envPort : (parseInt(project.port, 10) || 8770);
 
@@ -45,6 +55,8 @@ module.exports = {
   name: project.name || "TeleDash Pro",
   port: port,
   pagesBase: String(project.pagesBase || "").replace(/\/+$/, ""),
+  googleClient: parseGoogleClient(readJson(path.join(ROOT, "google-client.json"))),
+  parseGoogleClient: parseGoogleClient,
   version: String(appinfo.version || "0.0.0"),
   DATA: dataDir()
 };

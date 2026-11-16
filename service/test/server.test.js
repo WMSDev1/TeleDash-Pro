@@ -308,7 +308,7 @@ t.test("google start and return: state is single use (no Google call made)", fun
   var o = { host: LAN, cookie: cookie, write: true };
   return req("POST", "/api/google/start", o).then(function (r) {
     assert.strictEqual(r.status, 400);
-    assert.ok(/client ID and client secret/.test(r.json.error));
+    assert.ok(/no Google sign-in built in/.test(r.json.error));
     return req("POST", "/api/secrets", Object.assign({ body: { google: { clientId: "123-example.apps.googleusercontent.com", clientSecret: "example-client-secret" } } }, o));
   }).then(function () {
     return req("POST", "/api/google/start", o);

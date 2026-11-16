@@ -1,7 +1,9 @@
 "use strict";
 // Google Calendar sign-in (web-application client + PKCE; CONTRACT.md "Google sign-in") and reads.
-// The user brings their own OAuth client; Google sends the phone back through the project's
-// GitHub Pages site (<pagesBase>/oauth/), which forwards to this service's /oauth/return.
+// Release packages carry the project's own OAuth client (config.googleClient), so users only sign
+// in; an owner may still save their own client instead (advanced). Google sends the phone back
+// through the project's GitHub Pages site (<pagesBase>/oauth/), which forwards to /oauth/return.
+var config = require("./config");
 var util = require("./util");
 var http = require("./http");
 var secrets = require("./secrets");
@@ -15,6 +17,21 @@ var STATE_MS = 10 * 60 * 1000;
 
 var pending = new Map();                       // nonce -> { verifier, expires }
 
+// The client for a new sign-in: the owner's own if saved, else the one built into this package.
+function client() {
+  var g = secrets.load().google || {}, b = config.googleClient;
+  if (g.clientId && g.clientSecret) return { id: g.clientId, secret: g.clientSecret };
+  return b ? { id: b.clientId, secret: b.clientSecret } : null;
+}
+// The client that issued the saved tokens (Google refreshes only with that one).
+function tokenClient(g) {
+  var b = config.googleClient;
+  if (!g.tokenClientId) return client();                         // signed in before this was recorded
+  if (g.clientId === g.tokenClientId && g.clientSecret) return { id: g.clientId, secret: g.clientSecret };
+  if (b && b.clientId === g.tokenClientId) return { id: b.clientId, secret: b.clientSecret };
+  return null;
+}
+
 function redirectUri(pagesBase) { return pagesBase.replace(/\/+$/, "") + "/oauth/"; }
 
 function prune() {
@@ -27,16 +44,16 @@ function prune() {
 function start(origin, pagesBase) {
   if (!pagesBase) throw util.httpError(400, "Google sign-in is not available in this build of TeleDash Pro (it has no sign-in web page). Use an iCal link, or install a release build.");
   if (!origin) throw util.httpError(500, "The TV has no network address to return to. Check its network connection.");
-  var g = secrets.load().google || {};
-  if (!g.clientId || !g.clientSecret) throw util.httpError(400, "Paste your Google client ID and client secret first, then sign in.");
+  var c = client();
+  if (!c) throw util.httpError(400, "This build of TeleDash Pro has no Google sign-in built in. Use an iCal link, or add your own Google client under Advanced.");
   var nonce = util.randomToken(16);
   var verifier = util.randomToken(32);                           // 43 characters, as PKCE wants
   var challenge = util.b64url(util.sha256(verifier));
-  pending.set(nonce, { verifier: verifier, expires: Date.now() + STATE_MS });
+  pending.set(nonce, { verifier: verifier, expires: Date.now() + STATE_MS, client: c.id });
   prune();
   var state = util.b64url(Buffer.from(JSON.stringify({ t: origin, n: nonce })));
   var q = {
-    client_id: g.clientId, redirect_uri: redirectUri(pagesBase), response_type: "code", scope: SCOPE,
+    client_id: c.id, redirect_uri: redirectUri(pagesBase), response_type: "code", scope: SCOPE,
     access_type: "offline", prompt: "consent", state: state, code_challenge: challenge, code_challenge_method: "S256"
   };
   return { authUrl: AUTH + "?" + http.form(q), state: state };
@@ -51,13 +68,13 @@ function finish(query, pagesBase) {
   if (!entry || entry.expires <= Date.now()) return Promise.reject(util.httpError(400, "This sign-in link has expired or was already used. Start again from the setup page."));
   if (query.error) return Promise.reject(util.httpError(400, query.error === "access_denied" ? "Google sign-in was cancelled." : "Google reported a problem with the sign-in."));
   if (!query.code) return Promise.reject(util.httpError(400, "Google did not send a sign-in code."));
-  var g = secrets.load().google || {};
-  if (!g.clientId || !g.clientSecret) return Promise.reject(util.httpError(400, "The Google client ID and secret were removed during sign-in."));
+  var c = client();
+  if (!c || c.id !== entry.client) return Promise.reject(util.httpError(400, "The Google client changed during sign-in. Start again from the setup page."));
   return http.json({
     url: TOKEN, method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
     body: http.form({
-      code: query.code, client_id: g.clientId, client_secret: g.clientSecret,
+      code: query.code, client_id: c.id, client_secret: c.secret,
       redirect_uri: redirectUri(pagesBase), grant_type: "authorization_code", code_verifier: entry.verifier
     })
   }).catch(function (e) {
@@ -67,7 +84,7 @@ function finish(query, pagesBase) {
   }).then(function (t) {
     if (!t.refresh_token) throw util.httpError(502, "Google did not grant lasting access. Remove TeleDash from your Google account's third-party access and sign in again.");
     secrets.saveGoogle({
-      refreshToken: t.refresh_token, accessToken: t.access_token,
+      refreshToken: t.refresh_token, accessToken: t.access_token, tokenClientId: c.id,
       expiry: Date.now() + (Number(t.expires_in) || 3600) * 1000
     });
     var cal = settings.load().calendar;
@@ -80,10 +97,12 @@ function accessToken() {
   var g = secrets.load().google || {};
   if (!g.refreshToken) return Promise.reject(util.httpError(409, "Google Calendar is not connected. Sign in on the setup page."));
   if (g.accessToken && g.expiry > Date.now() + 60000) return Promise.resolve(g.accessToken);
+  var c = tokenClient(g);
+  if (!c) return Promise.reject(util.httpError(401, "The Google client this TV signed in with is gone. Sign in again on the setup page."));
   return http.json({
     url: TOKEN, method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
-    body: http.form({ client_id: g.clientId, client_secret: g.clientSecret, refresh_token: g.refreshToken, grant_type: "refresh_token" })
+    body: http.form({ client_id: c.id, client_secret: c.secret, refresh_token: g.refreshToken, grant_type: "refresh_token" })
   }).then(function (t) {
     var fields = { accessToken: t.access_token, expiry: Date.now() + (Number(t.expires_in) || 3600) * 1000 };
     if (t.refresh_token) fields.refreshToken = t.refresh_token;
@@ -92,7 +111,7 @@ function accessToken() {
   }, function (e) {
     if (e.data && e.data.error === "invalid_grant") {
       // Revoked or expired for good: forget the tokens so the setup page shows "not connected".
-      secrets.saveGoogle({ refreshToken: undefined, accessToken: undefined, expiry: undefined });
+      secrets.saveGoogle({ refreshToken: undefined, accessToken: undefined, expiry: undefined, tokenClientId: undefined });
       throw util.httpError(401, "Google access has expired or was revoked. Sign in again on the setup page.");
     }
     throw e;

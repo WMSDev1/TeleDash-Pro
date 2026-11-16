@@ -7,6 +7,7 @@ var util = require("../lib/util");
 var http = require("../lib/http");
 var secrets = require("../lib/secrets");
 var settings = require("../lib/settings");
+var config = require("../lib/config");
 var google = require("../lib/google");
 
 var PAGES = "https://example.github.io/teledash-pro";
@@ -25,7 +26,7 @@ function body(o) { return query("http://x/?" + o.body); }
 
 t.test("start needs a Pages address and client keys", function () {
   return t.rejects(function () { google.start(ORIGIN, ""); }, /not available in this build/, 400)
-    .then(function () { return t.rejects(function () { google.start(ORIGIN, PAGES); }, /client ID and client secret first/, 400); });
+    .then(function () { return t.rejects(function () { google.start(ORIGIN, PAGES); }, /no Google sign-in built in/, 400); });
 });
 
 t.test("start builds the contract's auth URL and state", function () {
@@ -122,6 +123,46 @@ t.test("window covers local midnight to midnight N days later (plus 2 h for DST)
   var w = google.windowFor(2, 300, Date.UTC(2026, 0, 2, 3, 0));
   assert.strictEqual(w.min.toISOString(), "2026-01-01T05:00:00.000Z");
   assert.strictEqual(w.max.toISOString(), "2026-01-03T07:00:00.000Z");   // 2 h spare for a DST change
+});
+
+t.test("the client file: Google's download or plain fields; anything else is ignored", function () {
+  var P = config.parseGoogleClient;
+  assert.deepStrictEqual(P({ web: { client_id: "1-a.apps.googleusercontent.com", client_secret: "s" } }), { clientId: "1-a.apps.googleusercontent.com", clientSecret: "s" });
+  assert.deepStrictEqual(P({ clientId: "1-a.apps.googleusercontent.com", clientSecret: "s" }), { clientId: "1-a.apps.googleusercontent.com", clientSecret: "s" });
+  assert.strictEqual(P({ web: { client_id: "nope", client_secret: "s" } }), null);
+  assert.strictEqual(P({ web: { client_id: "1-a.apps.googleusercontent.com" } }), null);
+  assert.strictEqual(P(null), null);
+});
+
+t.test("built-in client: sign in without saving keys; tokens refresh with the client that issued them", function () {
+  secrets.remove("google");
+  config.googleClient = { clientId: "999-project.apps.googleusercontent.com", clientSecret: "project-secret" };
+  calls = [];
+  var q = query(google.start(ORIGIN, PAGES).authUrl);
+  assert.strictEqual(q.client_id, "999-project.apps.googleusercontent.com");
+  replies.push({ access_token: "p1", expires_in: 3600, refresh_token: "prt" });
+  return google.finish({ state: q.state, code: "c2" }, PAGES).then(function () {
+    assert.strictEqual(body(calls[0]).client_secret, "project-secret");
+    var g = secrets.load().google;
+    assert.strictEqual(g.tokenClientId, "999-project.apps.googleusercontent.com");
+    assert.strictEqual(g.clientId, undefined, "nothing to paste, nothing saved");
+    assert.strictEqual(secrets.stored().googleClient, false);
+    assert.strictEqual(secrets.stored().googleSignedIn, true);
+    secrets.saveGoogle({ expiry: 0 });
+    replies.push({ access_token: "p2", expires_in: 3600 });
+    return google.accessToken();
+  }).then(function (tok) {
+    assert.strictEqual(tok, "p2");
+    assert.strictEqual(body(calls[1]).client_id, "999-project.apps.googleusercontent.com");
+    // A sign-in started with one client cannot finish with another.
+    var q2 = query(google.start(ORIGIN, PAGES).authUrl);
+    secrets.save({ google: { clientId: "123-example.apps.googleusercontent.com", clientSecret: "example-secret" } });
+    return t.rejects(function () { return google.finish({ state: q2.state, code: "c3" }, PAGES); }, /client changed/);
+  }).then(function () {
+    // The owner's own client wins for new sign-ins.
+    assert.strictEqual(query(google.start(ORIGIN, PAGES).authUrl).client_id, "123-example.apps.googleusercontent.com");
+    config.googleClient = null;
+  });
 });
 
 t.test("restore transport", function () { http.json = realJson; });

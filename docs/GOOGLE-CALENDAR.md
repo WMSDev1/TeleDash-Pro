@@ -1,126 +1,53 @@
 # Connecting Google Calendar
 
-TeleDash Pro reads your Google Calendar with **read-only** access, using your own Google Cloud
-project. This takes about 15 minutes once. After that, sign-in happens on your phone and the
-TV keeps itself connected.
+TeleDash Pro reads your Google Calendar with **read-only** access. You sign in with Google on
+your phone once; after that the TV keeps itself connected and fetches your events itself.
 
-Why your own project? TeleDash Pro has no company behind it and no server, so there is no
-shared "TeleDash" Google app to sign in to. Your project means only you hold the keys, and you
-can switch it off at any time.
+Why on the phone and not on the TV? Google's TV sign-in method (the "device flow", where you
+type a code at google.com/device) does not allow calendar access, so sign-in happens in your
+phone's browser instead, from the setup page you open with the TV's QR code.
 
-Why not "sign in on the TV with a code"? Google's TV sign-in method (the "device flow") does not
-allow calendar access, so sign-in happens in your phone's browser instead.
+## Sign in
 
-Prefer something quicker? See [The iCal alternative](#the-ical-alternative) below, and its
-risk.
+1. Open the setup page on your phone (scan the QR code on the TV; see [SETUP.md](SETUP.md)).
+   Your phone must be on the same home network as the TV.
+2. Under **Calendar**, choose **Google**, then **Sign in with Google**.
+3. Pick your Google account and allow TeleDash Pro to see your calendars.
+   - Google may first say **"Google hasn't verified this app"**. TeleDash Pro has not been
+     through Google's review yet. Tap **Advanced**, then **Go to TeleDash Pro**. *(Until it is
+     verified, Google also limits the app to 100 users in total.)*
+4. Google sends your phone to the TeleDash Pro site's `oauth/` page, which hands the result
+   straight back to your TV on your home network and returns you to the setup page.
+5. Choose which calendars to show. Your main calendar is selected by default.
 
-> Google changes the names and layout of its console from time to time. If a menu below is not
-> where this guide says, look for the same words nearby.
+The return page only ever forwards to a home-network address (`10.x.x.x`, `172.16–31.x.x` or
+`192.168.x.x`), never anywhere else. Sign-in needs a **release build** (installed from Homebrew
+Channel): development builds have no site for Google to return to, and no built-in Google client.
 
-## What you need
+## Advanced: your own Google client
 
-- A Google account (the one whose calendar you want on the TV).
-- A **release build** of TeleDash Pro, installed from Homebrew Channel. Development builds have
-  no web address for Google to return to, so Google sign-in is disabled in them.
-- The web address of the TeleDash Pro site your build came from. It is the Homebrew Channel
-  repository address without `/repo/apps.json` at the end, for example
-  `https://<owner>.github.io/teledash-pro`. Below this is written `<site>`.
-- Your phone on the same home network as the TV, with the setup page open
-  (see [SETUP.md](SETUP.md)).
-
-## 1. Create a Google Cloud project
-
-1. Go to <https://console.cloud.google.com/> and sign in.
-2. Open the project picker at the top and choose **New project**.
-3. Name it something you will recognise, for example `TeleDash TV`, and create it.
-   Make sure the new project is selected before continuing.
-
-## 2. Turn on the Google Calendar API
-
-1. Go to **APIs & Services → Library**.
-2. Search for **Google Calendar API**, open it, and choose **Enable**.
-
-## 3. Set up the OAuth consent screen
-
-This is the screen Google shows when you sign in, and the rules for who may use your project.
-In newer versions of the console it is under **Google Auth Platform** (Branding, Audience,
-Data access); in older ones under **APIs & Services → OAuth consent screen**.
-
-1. **App name**: anything, for example `TeleDash TV`. **Support email** and **developer contact**:
-   your own address. These are shown only to you.
-2. **Audience / user type**: **External** (unless your account belongs to a Google Workspace
-   organisation and you only need it there, in which case **Internal** is simpler).
-3. **Scopes / data access**: add `https://www.googleapis.com/auth/calendar.readonly`
-   ("See and download any calendar you can access"). This is the only scope TeleDash Pro asks
-   for. It cannot change or delete anything.
-4. **Test users**: add the Google account whose calendar you will show.
-
-### Publishing status: Testing or In production
-
-A new project starts in **Testing**.
-
-- **Testing**: only the test users you listed can sign in. Google also expires the sign-in
-  after about **seven days**, so the TV loses calendar access roughly once a week and you
-  have to sign in again from the setup page. *(Assumed: this is Google's published rule for
-  Testing apps that request calendar access; it has not been measured with TeleDash Pro.)*
-- **In production**: choose **Publish app** on the consent screen page. The sign-in then
-  lasts until you revoke it. Because calendar access is a "sensitive" scope and your project
-  has not been through Google's review, Google shows a warning when you sign in
-  ("Google hasn't verified this app"). Since you created the app yourself, it is safe to choose
-  **Advanced → Go to TeleDash TV (unsafe)**. *(Assumed: unverified personal projects can be
-  published this way and are limited to a small number of users, which is fine for one
-  household; Google's rules may change.)*
-
-If you are unsure, start with Testing, check that everything works, then publish.
-
-## 4. Create the OAuth client
-
-1. Go to **APIs & Services → Credentials** (or **Google Auth Platform → Clients**).
-2. Choose **Create credentials → OAuth client ID**.
-3. **Application type**: **Web application**. (Not "TVs and Limited Input devices".)
-4. **Name**: anything, for example `TeleDash TV`.
-5. **Authorised JavaScript origins**: leave empty.
-6. **Authorised redirect URIs**: add exactly
-
-   ```
-   <site>/oauth/
-   ```
-
-   for example `https://<owner>.github.io/teledash-pro/oauth/`, with the trailing slash.
-   It must match the site your build came from, character for character.
-7. Choose **Create**. Google shows a **Client ID** and a **Client secret**. Keep this window open.
-
-## 5. Connect on the setup page
-
-1. On your phone's setup page, under **Calendar**, choose **Google**.
-2. Paste the **Client ID** and **Client secret**, and save. They are stored only on your TV and
-   are never shown again.
-3. Choose **Sign in with Google**. Your phone goes to Google's normal sign-in page.
-4. Sign in with the test-user account and allow read-only calendar access.
-5. Google sends your phone to `<site>/oauth/`. That page does one thing: it hands the result
-   straight back to your TV on your home network and returns you to the setup page, which
-   should now say Google is connected.
-6. Choose which calendars to show. Your main calendar is selected by default.
-
-Use the **same phone and home network** for the whole sign-in: the return page can only reach
-the TV from inside your home network. For safety it only ever forwards to a home-network
-address (`10.x.x.x`, `172.16–31.x.x` or `192.168.x.x`) and never anywhere else.
+If you build TeleDash Pro yourself, or would rather not use the project's Google app, create
+your own OAuth client and paste it under **Calendar → Google → Advanced** on the setup page. A
+client you save there is used instead of the built-in one. It takes about 15 minutes; follow
+[RELEASING.md](RELEASING.md#the-projects-google-client) with your own names, and use the
+redirect URI the setup page shows. A personal client left in **Testing** status loses its
+sign-in after about seven days; publish it (**In production**) to avoid that.
 
 ## Revoking access
 
-- At any time: <https://myaccount.google.com/permissions>, find your app (for example
-  `TeleDash TV`), and remove its access. The TV stops showing your calendar.
-- On the setup page: remove the Google connection. This deletes the stored keys and sign-in from
-  the TV. It does not tell Google; revoke it there as well if you are done with it.
-- To stop everything for good, delete the Google Cloud project.
+- At any time: <https://myaccount.google.com/permissions>, find **TeleDash Pro** (or your own
+  client's name), and remove its access. The TV stops showing your calendar.
+- On the setup page: **Disconnect Google**. This deletes the sign-in (and any keys you saved)
+  from the TV. It does not tell Google; revoke it there as well if you are done with it.
 
 ## If it stops working
 
 | Symptom | Likely cause |
 |---|---|
-| Google says `redirect_uri_mismatch` | The redirect URI in step 4 does not exactly match `<site>/oauth/` (check `https`, the owner, and the trailing slash). |
-| Google says access is blocked / app not available | You are signing in with an account that is not a test user, while the app is in Testing. |
-| Worked for a week, then stopped | The app is still in Testing (see above). Sign in again, or publish the app. |
+| Google says `redirect_uri_mismatch` | The client's redirect URI does not exactly match `<site>/oauth/` (check `https`, the owner, the repository name's capitals, and the trailing slash). |
+| Google says access is blocked / app not available | The client is in Testing and your account is not a test user, or the unverified app has reached its 100-user limit. |
+| Worked for a week, then stopped | Your own client is still in Testing (see above). Sign in again, or publish it. |
+| "Sign in with Google" is greyed out | This build has no built-in client (a development build). Install a release build, or add your own client under Advanced. |
 | The `oauth` page shows an error instead of returning | It refused to forward somewhere that is not a home-network address, or the sign-in link was opened on a different network. Start again from the setup page. |
 
 ## The iCal alternative

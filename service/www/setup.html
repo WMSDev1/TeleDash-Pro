@@ -37,15 +37,19 @@
   <div id="cal-google" class="panel" hidden>
     <p id="google-unavailable" class="help" hidden>Google sign-in is not available in this build of TeleDash Pro. Use an iCal link instead, or install a release build.</p>
     <div id="google-steps">
-      <p class="help">Google needs your own (free) Google Cloud OAuth client of type <b>Web application</b>. Add this as an authorised redirect URI:</p>
-      <p class="code" id="google-redirect"></p>
       <p class="state" id="google-state"></p>
-      <label class="field">Client ID<input id="google-id" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="….apps.googleusercontent.com"></label>
-      <label class="field">Client secret<input id="google-secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <p class="help" id="google-warning">Google may say it <b>hasn't verified</b> TeleDash Pro yet. Tap <b>Advanced</b>, then <b>Go to TeleDash Pro</b>. TeleDash Pro only reads your calendars, and the sign-in is kept on this TV.</p>
       <div class="row">
-        <button id="google-save">Save keys</button>
         <button id="google-signin" class="primary">Sign in with Google</button>
       </div>
+      <details id="google-own">
+        <summary>Advanced: use your own Google client</summary>
+        <p class="help">Create a Google Cloud OAuth client of type <b>Web application</b> and add this as an authorised redirect URI:</p>
+        <p class="code" id="google-redirect"></p>
+        <label class="field">Client ID<input id="google-id" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="….apps.googleusercontent.com"></label>
+        <label class="field">Client secret<input id="google-secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <button id="google-save">Save keys</button>
+      </details>
       <div id="google-cals" hidden>
         <h3>Calendars to show</h3>
         <div id="google-cal-list" class="checks"></div>

@@ -18,6 +18,51 @@ GitHub Release, and update the Homebrew Channel repository on the project's GitH
 - Turn on **private vulnerability reporting** (Settings → Code security) so people can report
   problems privately; see [SECURITY.md](../SECURITY.md).
 
+## The project's Google client
+
+Release packages carry one Google OAuth client, so users only sign in, with no Google Cloud setup of
+their own. The maintainer creates it once. It never goes into git: `scripts/build.sh` takes it
+from a local `google-client.json` (git-ignored) or, in the release job, from the repository
+secret `TELEDASH_GOOGLE_CLIENT`. The client secret does end up inside the public package; for an
+app installed on people's devices Google does not treat it as confidential, and it gives no
+access to anyone's calendar.
+
+> Google renames and moves console pages from time to time. If a menu is not where this says,
+> look for the same words nearby.
+
+1. Go to <https://console.cloud.google.com/>, open the project picker, choose **New project**,
+   name it `TeleDash Pro`, create it, and make sure it is selected.
+2. **APIs & Services → Library**: search **Google Calendar API**, open it, choose **Enable**.
+3. **Google Auth Platform → Branding** (older consoles: **OAuth consent screen**):
+   - **App name** `TeleDash Pro`; **User support email** and **Developer contact**: the
+     maintainer's address (Google shows the support email on the consent screen).
+   - Leave the logo empty: adding one requires Google's verification before it shows.
+4. **Audience**: user type **External**. Then **Publish app** so the status is **In
+   production**. Do not leave it in **Testing**: sign-ins would expire after about seven days
+   and only listed test users could sign in. Do not submit for verification yet: that needs a
+   homepage and privacy policy on a domain the project owns.
+5. **Data access**: **Add or remove scopes**, add
+   `https://www.googleapis.com/auth/calendar.readonly`, save.
+6. **Clients → Create client**:
+   - **Application type**: **Web application** (not "TVs and Limited Input devices").
+   - **Name**: `TeleDash Pro`.
+   - **Authorised JavaScript origins**: leave empty.
+   - **Authorised redirect URIs**: the release site plus `/oauth/`, exactly, for example
+     `https://<owner>.github.io/<Repo>/oauth/` (keep the repository name's capitals and the
+     trailing slash).
+   - **Create**, then **Download JSON**.
+7. Save the download as `google-client.json` in the repository root (it is git-ignored, and
+   `scripts/check.sh` fails if it is ever tracked). Local builds now include it.
+8. For release builds, store it as the repository secret (run by the maintainer):
+
+   ```sh
+   gh secret set TELEDASH_GOOGLE_CLIENT < google-client.json
+   ```
+
+Until the app is verified, users see "Google hasn't verified this app" once and the client is
+limited to 100 users in total. Verification (later) needs the homepage, a privacy policy, and a
+short video of the sign-in, and Google's review.
+
 ## Making a release
 
 1. Make sure `main` is green: `bash scripts/check.sh` passes locally and in CI.

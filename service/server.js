@@ -240,7 +240,7 @@ function statusView() {
   var s = settings.load();
   return {
     version: config.version, connected: connected(s), stored: secrets.stored(), update: updates.status(),
-    google: { available: !!config.pagesBase, redirectUri: config.pagesBase ? google.redirectUri(config.pagesBase) : null, lastError: lastGoogleError }
+    google: { available: !!config.pagesBase, builtIn: !!config.googleClient, redirectUri: config.pagesBase ? google.redirectUri(config.pagesBase) : null, lastError: lastGoogleError }
   };
 }
 

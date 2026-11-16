@@ -56,9 +56,8 @@ setting, it also tells TeleDash Pro to leave you there until you open another ap
 
 Choose one:
 
-- **Google Calendar**: you sign in with Google on your phone. It needs a one-time setup in
-  Google's developer console (about 15 minutes). Step by step:
-  [GOOGLE-CALENDAR.md](GOOGLE-CALENDAR.md).
+- **Google Calendar**: tap **Sign in with Google** on your phone and pick the calendars to
+  show. Details: [GOOGLE-CALENDAR.md](GOOGLE-CALENDAR.md).
 - **iCal address**: paste the address of a calendar feed (`.ics`). Quicker, but read the warning
   in [GOOGLE-CALENDAR.md](GOOGLE-CALENDAR.md#the-ical-alternative) first.
 - **None** (the default).

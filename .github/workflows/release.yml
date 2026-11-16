@@ -80,6 +80,8 @@ jobs:
       - name: Build the ipk
         env:
           EXPECT_VERSION: ${{ steps.meta.outputs.version }}
+          # Repository secret: the Google OAuth client JSON (ADR-31). Optional.
+          TELEDASH_GOOGLE_CLIENT: ${{ secrets.TELEDASH_GOOGLE_CLIENT }}
         run: bash scripts/build.sh
 
       - name: Homebrew Channel manifest and repository index

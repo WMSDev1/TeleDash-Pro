@@ -109,7 +109,7 @@ Packaged with `ares-package --no-minify build/stage -o build`.
 - `home.delaySeconds`: 0–30. `updates.auto`: default **false**.
 
 Secrets (`secrets.json`), write-only from the setup page:
-`{ "icalUrl", "google": { "clientId", "clientSecret", "refreshToken", "accessToken", "expiry" }, "feedToken", "feedTokenOrigin" }`
+`{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client
 
 ## Service HTTP API (port 8770)
 
@@ -146,10 +146,10 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `POST /api/secrets` | `{ "icalUrl"? , "google": { "clientId", "clientSecret" }?, "feedToken"? }` → `{ "ok": true }`; values never echoed back. `icalUrl` must be `https://` or `webcal://` (stored as `https://`) |
 | `DELETE /api/secrets/<icalUrl|google|feedToken>` | removes it; removing the secret of the current `calendar.source` also sets it to `"none"` |
 | `GET /api/apps` | installed apps `[ { "id", "title" } ]` (via `luna-send ... listApps`; `[]` off-TV) |
-| `POST /api/google/start` | `{ "authUrl" }` (see below); error if `pagesBase` is empty or no client id |
+| `POST /api/google/start` | `{ "authUrl" }` (see below); error if `pagesBase` is empty or there is no client (built-in or own) |
 | `GET /api/google/calendars` | `[ { "id", "summary", "primary" } ]` |
 | `GET /oauth/return?code&state` | completes Google sign-in (no session cookie needed: protected by the single-use `state` nonce + PKCE), then redirects to `/setup?google=ok` or `/setup?google=error` |
-| `GET /api/status` | `{ "version", "connected": {...}, "stored": { "icalUrl", "googleClient", "googleSignedIn", "feedToken" } (booleans), "update": {..., "installing", "error"}, "google": { "available", "redirectUri", "lastError" } }` (session required) |
+| `GET /api/status` | `{ "version", "connected": {...}, "stored": { "icalUrl", "googleClient", "googleSignedIn", "feedToken" } (booleans), "update": {..., "installing", "error"}, "google": { "available", "builtIn", "redirectUri", "lastError" } }` (session required). `builtIn`: the package carries a Google client, so sign-in needs no keys |
 | `POST /api/update` | same as `POST /api/local/update`, for the setup page's "Update now" (the phone cannot reach the loopback-only endpoint) |
 
 Every state-changing setup request requires the session cookie **and** an `X-TeleDash: 1` header
@@ -158,9 +158,11 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
 
 ## Google sign-in (no device flow: Google does not allow Calendar scopes on it)
 
-1. The user creates their own Google Cloud project and an OAuth client of type **Web application**,
-   with authorised redirect URI `<pagesBase>/oauth/` (docs explain), and pastes the client id and
-   secret into the setup page.
+1. The client: the owner's own (`secrets.json` `google.clientId/clientSecret`, saved under
+   Advanced on the setup page) if present, else the package's `google-client.json` (Google's
+   downloaded `{"web": {"client_id", "client_secret"}}` or `{clientId, clientSecret}`; written by
+   `scripts/build.sh`, never in git). Either is a **Web application** client with authorised
+   redirect URI `<pagesBase>/oauth/`. No client → `POST /api/google/start` returns 400.
 2. `POST /api/google/start` creates `state = base64url(JSON {"t": "http://<lan-ip>:8770", "n": "<nonce>"})`
    and a PKCE verifier/challenge (S256), remembers nonce → verifier for 10 minutes, and returns
    `https://accounts.google.com/o/oauth2/v2/auth?client_id=…&redirect_uri=<pagesBase>/oauth/&response_type=code&scope=https://www.googleapis.com/auth/calendar.readonly&access_type=offline&prompt=consent&state=…&code_challenge=…&code_challenge_method=S256`.
