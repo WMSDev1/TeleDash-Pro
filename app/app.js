@@ -727,6 +727,15 @@
   dailyOrder();
   // The helper's key for /api/local (CONTRACT.md), readable only as root.
   function readKey(cb) { sh("cat " + DATA + "/local.token 2>/dev/null; true", function (out) { cb(out ? out.replace(/\s+/g, "") : ""); }); }
+  // Launched with {"idle": true} (after an install at night, for instance): go straight to the
+  // idle view instead of waiting for the idle timer. Works for a fresh launch and a relaunch.
+  function launchIdle(p) {
+    if (typeof p === "string") { try { p = JSON.parse(p || "{}"); } catch (e) { p = {}; } }
+    if (p && p.idle) setTimeout(function () { if (!isIdle()) goIdle(); }, 1500);
+  }
+  if (window.PalmSystem) launchIdle(window.PalmSystem.launchParams);
+  document.addEventListener("webOSRelaunch", function (e) { launchIdle(e && e.detail); });
+
   Settings.start(applySettings, onStatus, readKey);
   helperCheck();
   if (/[?&]setup=demo/.test(location.search)) openSetup();
