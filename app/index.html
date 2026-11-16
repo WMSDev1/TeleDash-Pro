@@ -76,6 +76,13 @@
   #idle #inet, #idle #ialert { color: #6b5420; }
   #idle #ialert.severe { color: #8a4040; }
   #idle #inet::before { background: #6b5420; }
+  /* Night mode (Night tile or red button): far darker and lower contrast than standby, in a deep
+     amber-red, thin clock, extras hidden. Rendered values about a third of standby's brightness. */
+  body.night #idle { opacity: 1; color: #301509; }
+  body.night #iclock { font-weight: 100; }
+  body.night #idate, body.night #iwx { color: #22100a; }
+  body.night #icount, body.night #inet { display: none; }
+  body.night #ialert { color: #2e1410; }
   #status { position: absolute; left: 100px; bottom: 14px; font-size: 24px; color: #7d8794; }
 
   /* Countdown line under the date; air quality and weather warnings under the weather. */

@@ -43,7 +43,8 @@
     // Always two tight rows of small tiles at the top, so the weather and calendar panels keep
     // their place: more apps add columns (up to 14); anything past 28 tiles is left to All apps.
     cols = Math.max(1, Math.min(14, Math.max(+CONFIG.columns || 6, Math.ceil(list.length / 2))));
-    if (list.length > 2 * cols) apps = list.slice(0, 2 * cols - 3).concat(list.slice(-3));   // keep HDMI 1 / Set up / All apps
+    var nFixed = Helpers.FIXED.length;                       // keep HDMI 1 / Set up / Night / All apps
+    if (list.length > 2 * cols) apps = list.slice(0, 2 * cols - nFixed).concat(list.slice(-nFixed));
     var h = TILE_H, gap = 12;
     grid.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
     grid.style.gap = gap + "px";
@@ -123,6 +124,7 @@
 
   function launch(a, lgModeSet) {
     if (a.setup) { openSetup(); return; }
+    if (a.night) { goNight(); return; }
     if (!window.WebOSServiceBridge && !window.PalmServiceBridge) { say("Not running on the TV — would launch " + a.id); return; }
     // Exit tile ("All apps"): tell the kiosk script to let the LG home screen stay, by writing the
     // LG-mode flag as root. The script deletes it as soon as any other app comes to the front.
@@ -141,6 +143,18 @@
   function setIdleMs() { idleMs = (qi ? +qi[1] : +CONFIG.idleSeconds || 0) * 1000; }
   function isIdle() { return document.body.classList.contains("idle"); }
   function isBrief() { return document.body.classList.contains("brief"); }
+  // Night mode: the idle view in a very dark, low-contrast palette, chosen by hand (Night tile,
+  // red button, or launch parameter night). It stays until a real button press: no morning
+  // brief, no waking on pointer movement or when the app comes back to the front.
+  function isNight() { return document.body.classList.contains("night"); }
+  function goNight() {
+    clearTimeout(idleTimer);
+    document.body.classList.remove("brief");
+    document.body.classList.add("night");
+    document.body.classList.add("idle");
+    setWeatherBackgroundPaused(true);
+    setTimeout(drift, 100);
+  }
   function inMorning(now) { return qm || Helpers.inMorning(CONFIG.morning, now || new Date()); }
   function showBrief() {
     document.body.classList.remove("idle"); document.body.classList.add("brief");
@@ -154,6 +168,7 @@
   }
   function goIdle() {
     if (overlay) { idleTimer = setTimeout(goIdle, idleMs); return; }   // not while the setup screen is up
+    if (isNight()) return;
     if (inMorning()) { showBrief(); return; }
     document.body.classList.remove("brief");
     document.body.classList.add("idle");
@@ -162,7 +177,7 @@
   }
   function wake() {                                            // returns true if it was idle or showing the brief
     var was = isIdle() || isBrief();
-    if (was) { document.body.classList.remove("idle"); document.body.classList.remove("brief"); setWeatherBackgroundPaused(false); }
+    if (was) { document.body.classList.remove("idle"); document.body.classList.remove("brief"); document.body.classList.remove("night"); setWeatherBackgroundPaused(false); }
     if (pendingGrid) { pendingGrid = false; buildGrid(tileList()); }
     clearTimeout(idleTimer);
     if (idleMs > 0) idleTimer = setTimeout(goIdle, idleMs);
@@ -172,6 +187,7 @@
   // Each minute: brighten a dim screen into the brief when the morning window opens, dim the
   // brief when it closes, refresh the brief, and pick up a new day's tile order.
   setInterval(function () {
+    if (isNight()) return;
     if (isIdle() && inMorning()) showBrief();
     else if (isBrief() && !inMorning()) goIdle();
     else if (isBrief()) renderBrief();
@@ -180,7 +196,7 @@
   // A standby launch (launch parameter idle) ignores the visibility change and stray pointer
   // events that arrive just after launch; only a button press wakes it during that time.
   var holdIdle = 0;
-  function holding() { return Date.now() < holdIdle; }
+  function holding() { return Date.now() < holdIdle || isNight(); }
   document.addEventListener("mousemove", function () { if (!holding()) wake(); });
   // Back in front: normally the dashboard. After a long absence inside the morning window (the TV
   // was just switched on), go straight to the brief. Catch up on anything that went stale meanwhile.
@@ -189,7 +205,7 @@
     if (document.hidden) { hiddenAt = Date.now(); return; }
     var away = hiddenAt ? Date.now() - hiddenAt : 0;
     if (!holding()) wake();
-    if (away > 30 * 60000 && inMorning()) showBrief();
+    if (away > 30 * 60000 && inMorning() && !isNight()) showBrief();
     if (away > 60000) { loadTvApps(); Settings.refresh(); }
     if (lastOk && new Date() - lastOk > REFRESH_MS) { weather(); calendar(); }
   });
@@ -206,6 +222,7 @@
     else if (k === 40) setFocus(Math.min(focus + cols, tiles.length - 1));   // down
     else if (k === 13) launch(apps[focus]);                                  // OK
     else if (k === 48 || k === 96 || k === 406) openSetup();                 // 0 or the blue key
+    else if (k === 403) goNight();                                            // red key: night mode
     else return;
     e.preventDefault();
   });
@@ -736,6 +753,7 @@
   // idle view instead of waiting for the idle timer. Works for a fresh launch and a relaunch.
   function launchIdle(p) {
     if (typeof p === "string") { try { p = JSON.parse(p || "{}"); } catch (e) { p = {}; } }
+    if (p && p.night) { holdIdle = Date.now() + 10000; [300, 1500, 4000].forEach(function (ms) { setTimeout(function () { if (!isNight()) goNight(); }, ms); }); return; }
     if (!(p && p.idle)) return;
     holdIdle = Date.now() + 10000;
     [300, 1500, 4000].forEach(function (ms) { setTimeout(function () { if (holding() && !isIdle()) goIdle(); }, ms); });

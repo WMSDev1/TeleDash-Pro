@@ -42,9 +42,9 @@ Under **Alerts** you can turn off:
 
 - **Automatic** (the default): every app installed on the TV that is meant to be opened by a
   person, ordered by how much you use it. The order is updated once a day, never while you
-  are looking at the screen. `HDMI 1`, `Set up` and `All apps` stay pinned at the end.
+  are looking at the screen. `HDMI 1`, `Set up`, `Night` and `All apps` stay pinned at the end.
 - **Choose my own**: pick apps from the TV's list and put them in order. `HDMI 1` shows only if
-  you add it; `Set up` always sits just before `All apps`.
+  you add it; `Set up` and `Night` always sit just before `All apps`.
 - **Columns**: the fewest tiles per row (6 by default). Tiles always fit in two rows, so with
   more apps the row gets longer and the tiles smaller.
 
@@ -100,6 +100,12 @@ idle view on those days.
 
 After this many seconds without a button press (120 by default) the screen dims to a slowly
 moving clock and weather view, to be kind to the panel. Any button wakes it.
+
+**Night mode** is a darker version for sleeping with the TV on: the clock, date and temperature
+in a very dim amber-red, everything else hidden. Start it with the **Night** tile or the remote's
+**red** button. It stays on until you press a button: no morning brief, and moving the remote's
+pointer does not wake it. To make the panel itself dimmer too, lower the TV's own picture
+settings (Settings → Picture → OLED Pixel Brightness).
 
 ## 10. Home button
 

@@ -89,12 +89,13 @@ Packaged with `ares-package --no-minify build/stage -o build`.
 ```
 - `rev` increases by one on every save; the app re-applies settings when it changes.
 - `apps`: `null` = automatic (installed, visible, non-system apps from the TV's app list, ordered by
-  use) followed by `HDMI 1`, `Set up` and `All apps`; or an array `[{ "id", "title", "color"? }]`
+  use) followed by `HDMI 1`, `Set up`, `Night` and `All apps`; or an array `[{ "id", "title", "color"? }]`
   (the setup page's own list, in its order; `HDMI 1` appears only if listed). In both cases the
-  app inserts the `Set up` tile (internal id `teledash.setup`) just before `All apps`, and adds
+  app inserts the `Set up` and `Night` tiles (internal ids `teledash.setup`, `teledash.night`) just
+  before `All apps`, and adds
   `All apps` at the end if the list lacks it.
   The `All apps` tile is `{ "id": "com.webos.app.home", "title": "All apps", "exit": true }`.
-- `pinned`: ids that keep their place when tiles are re-sorted by use; `Set up` and `All apps` are
+- `pinned`: ids that keep their place when tiles are re-sorted by use; `Set up`, `Night` and `All apps` are
   always pinned (and `HDMI 1` in automatic mode).
 - `weather`: `null` (off) or `{ "latitude", "longitude", "label", "fahrenheit" }`; coordinates are
   rounded to 1 decimal place by the service before saving (privacy: ~10 km).
@@ -197,6 +198,10 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
 - Setup screen on the TV: a "Set up" tile (pinned, before `All apps`) and the remote's `0`/blue key
   open an overlay: QR code of the `/api/local/pair` URL, the URL in text, and the code; it refreshes
   the code every 9 minutes while open. Back/Esc closes it.
+- Night mode: the `Night` tile, the red key (403) or launch parameter `{"night": true}` show the
+  idle view in a very dark, low-contrast amber-red palette (body class `night`). It ignores the
+  morning brief, pointer movement and the app returning to the front; any key press ends it.
+  Launch parameter `{"idle": true}` opens straight into the ordinary idle view.
 - QR: `app/qr.js` exposes `QR.matrix(text)` → array of rows of booleans (byte mode, error
   correction M, smallest version that fits, versions 1–10 at least) and `QR.svg(text, sizePx)` →
   SVG markup string. UMD-style: `var QR = …; if (typeof module !== "undefined") module.exports = QR;`

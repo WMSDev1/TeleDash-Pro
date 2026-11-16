@@ -13,8 +13,8 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
 
 - **App tiles.** Automatic by default: the apps installed on your TV, ordered by how often you
   use them (re-sorted once a day, never while you are looking). Or pick and order your own.
-  Automatic tiles end with `HDMI 1`, `Set up` and `All apps`; in your own list `Set up` always
-  sits just before `All apps`.
+  Automatic tiles end with `HDMI 1`, `Set up`, `Night` and `All apps`; in your own list `Set up`
+  and `Night` always sit just before `All apps`.
 - **Clock** and date.
 - **Weather** for a place you choose, in Celsius or Fahrenheit.
 - **Alerts**: official weather warnings and air quality for that place. Each can be turned off.
@@ -27,6 +27,8 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
 - **Countdowns**: days until holidays and your own dates.
 - **Idle view**: after two minutes without a button press, a dim clock and weather that drift
   slowly around the screen.
+- **Night mode**: the same drifting clock in a very dark amber-red, for sleeping with the TV on.
+  Start it with the **Night** tile or the remote's **red** button; only a button press ends it.
 - **Home button** (optional): make the remote's Home button open TeleDash Pro instead of
   LG's home screen. Off by default. See [docs/HOME-BUTTON.md](docs/HOME-BUTTON.md).
 
