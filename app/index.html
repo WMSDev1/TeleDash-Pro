@@ -21,13 +21,14 @@
   #net::before, #inet::before { content: ""; display: inline-block; width: 16px; height: 16px;
     border-radius: 8px; background: #ffb300; margin-right: 12px; }
 
-  #grid { display: grid; gap: 22px; padding: 28px 100px 0; }
-  .tile { height: 150px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
-    font-size: 36px; font-weight: 600; color: #fff; box-sizing: border-box;
+  #grid { display: grid; gap: 12px; padding: 24px 100px 0; }
+  .tile { height: 104px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 600; color: #fff; box-sizing: border-box;
     border: 2px solid #2a303a; transition: transform .12s;
-    text-align: center; padding: 0 16px; line-height: 1.15; overflow: hidden; }   /* long app names wrap */
-  .tile img { width: 130px; height: 130px; }
-  .tile.long { font-size: 28px; }
+    text-align: center; padding: 0 8px; line-height: 1.15; overflow: hidden; }   /* long app names wrap */
+  .tile img { width: 84px; height: 84px; }
+  .tile.long { font-size: 20px; }
+  .tile img { object-fit: contain; }
   .tile.focus { transform: scale(1.08); border-color: #ffb300;
     box-shadow: 0 0 0 6px #ffb300, 0 10px 30px rgba(0,0,0,.6); }
 

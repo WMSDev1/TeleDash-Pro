@@ -22,6 +22,7 @@ as `system/`, plus `project.json`.
 | Who | Talks to | How |
 |---|---|---|
 | Dashboard (`app/`) | Setup server | `http://127.0.0.1:8770/api/local/*` — accepted only from the TV itself, with the key from `$DATA/local.token` |
+| Dashboard (`app/`) | Setup server | `http://127.0.0.1:8770/icons/<appId>` — app logos for the tiles, TV only, no key |
 | Phone | Setup server | `http://<TV address>:8770/s/<code>`, then `/setup` and `/api/*` with a session cookie |
 | Google (via the phone) | Return page | `https://<owner>.github.io/teledash-pro/oauth/` |
 | Setup server | Internet | Google Calendar API, your iCal address, your data feed, the release manifest |

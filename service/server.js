@@ -262,7 +262,9 @@ function setup(req, res, route) {
   var key = m + " " + route;
   if (key === "GET /api/settings") return json(res, 200, settings.load());
   if (key === "GET /api/status") return json(res, 200, statusView());
-  if (key === "GET /api/apps") return tv.listApps().then(function (a) { json(res, 200, a); }, function (e) { fail(res, e); });
+  if (key === "GET /api/apps") return tv.listApps().then(function (a) {
+    json(res, 200, a.map(function (x) { return { id: x.id, title: x.title }; }));
+  }, function (e) { fail(res, e); });
   if (key === "GET /api/google/calendars") return google.calendars().then(function (c) { json(res, 200, c); }, function (e) { fail(res, e); });
 
   if (key === "PUT /api/settings") {
@@ -323,6 +325,24 @@ function serveFile(res, name, type, headers) {
 
 // ---------- router ----------
 
+// App icons for the dashboard's tiles. The web app cannot read other apps' folders itself, so
+// the helper (root) serves them, to the TV only. No key is needed: an <img> cannot send headers,
+// and an app's logo reveals nothing a web page on the TV could not already guess.
+function icon(req, res, route) {
+  if (req.method !== "GET" || !isLoopback(req)) return json(res, 403, { error: "Only the TV itself can use this." });
+  var id;
+  try { id = decodeURIComponent(route.slice(7)); } catch (e) { id = ""; }
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(id)) return json(res, 404, { error: "No such app." });
+  tv.appIcon(id).then(function (file) {
+    if (!file) return json(res, 404, { error: "That app has no icon." });
+    fs.readFile(file, function (err, data) {
+      if (err) return json(res, 404, { error: "That app has no icon." });
+      send(res, 200, data, /\.png$/i.test(file) ? "image/png" : "image/jpeg",
+        { "Cache-Control": "max-age=86400", "Access-Control-Allow-Origin": "*" });
+    });
+  }, function () { json(res, 404, { error: "That app has no icon." }); });
+}
+
 function handle(req, res) {
   var u;
   try { u = new URL(req.url, "http://localhost"); } catch (e) { return json(res, 400, { error: "Bad request." }); }
@@ -330,6 +350,7 @@ function handle(req, res) {
   if (!hostAllowed(req)) return json(res, 403, { error: "Use the TV's address (as in the QR code), not a host name." });
 
   if (route.indexOf("/api/local/") === 0) return local(req, res, route, u.searchParams);
+  if (route.indexOf("/icons/") === 0) return icon(req, res, route);
 
   if (req.method === "GET") {
     var pair = /^\/s\/([A-Za-z0-9_-]{1,64})$/.exec(route);

@@ -24,13 +24,37 @@ function luna(uri, payload, timeout) {
 var appsCache = { at: 0, list: null };
 
 // Installed, visible apps as [{ id, title }], sorted by title. [] off the TV.
+// The app's own icon file. webOS 6 reports it relative to folderPath ("largeIcon.png",
+// "images/largeIcon.png"; Verified on an LG C1). Only image files inside the TV's app folders
+// are ever served (see appIcon), so a strange listApps answer cannot expose other files.
+var APP_DIRS = ["/media/cryptofs/apps/usr/palm/applications/", "/media/developer/apps/usr/palm/applications/",
+  "/usr/palm/applications/"];
+function iconPath(a) {
+  var icon = a.largeIcon || a.icon;
+  if (typeof icon !== "string" || !icon || /^[a-z]+:/i.test(icon)) return "";
+  if (icon.charAt(0) !== "/") {
+    if (typeof a.folderPath !== "string" || !a.folderPath) return "";
+    icon = path.join(a.folderPath, icon);
+  }
+  icon = path.resolve(icon);
+  if (!/\.(png|jpe?g)$/i.test(icon)) return "";
+  return APP_DIRS.some(function (d) { return icon.indexOf(d) === 0; }) ? icon : "";
+}
+// Resolves the icon file for an app id, or "" when it has none.
+function appIcon(id) {
+  return listApps().then(function (apps) {
+    for (var i = 0; i < apps.length; i++) if (apps[i].id === id) return apps[i].icon || "";
+    return "";
+  });
+}
+
 function listApps() {
   if (appsCache.list && Date.now() - appsCache.at < 60000) return Promise.resolve(appsCache.list);
   return luna("luna://com.webos.service.applicationmanager/listApps", {}).then(function (r) {
     var apps = (r && Array.isArray(r.apps) ? r.apps : []).filter(function (a) {
       return a && typeof a.id === "string" && a.visible !== false && a.id !== config.appId;
     }).map(function (a) {
-      return { id: a.id, title: typeof a.title === "string" && a.title ? a.title : a.id };
+      return { id: a.id, title: typeof a.title === "string" && a.title ? a.title : a.id, icon: iconPath(a) };
     });
     apps.sort(function (a, b) { return a.title.toLowerCase() < b.title.toLowerCase() ? -1 : 1; });
     if (r) appsCache = { at: Date.now(), list: apps };
@@ -136,6 +160,6 @@ function relaunchApp() {
 }
 
 module.exports = {
-  listApps: listApps, lanAddress: lanAddress, isPrivate: isPrivate, writeKiosk: writeKiosk, ensureKiosk: ensureKiosk,
+  listApps: listApps, appIcon: appIcon, lanAddress: lanAddress, isPrivate: isPrivate, writeKiosk: writeKiosk, ensureKiosk: ensureKiosk,
   restartSystem: restartSystem, hasLuna: hasLuna, installIpk: installIpk, foregroundApp: foregroundApp, relaunchApp: relaunchApp
 };

@@ -346,6 +346,16 @@ t.test("apps list is empty off the TV; update refuses off the TV", function () {
   });
 });
 
+t.test("app icons: TV only, valid ids only, 404 when the app has no icon", function () {
+  return req("GET", "/icons/netflix", { host: LAN }).then(function (r) {
+    assert.strictEqual(r.status, 403);                       // not from the LAN
+    return req("GET", "/icons/..%2F..%2Fetc%2Fpasswd");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 404);                       // not an app id
+    return req("GET", "/icons/no.such.app");
+  }).then(function (r) { assert.strictEqual(r.status, 404); });   // no luna-send here: no apps
+});
+
 t.test("sessions survive a service restart", function () {
   if (!cookie) return;
   proc.kill();

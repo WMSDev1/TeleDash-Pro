@@ -36,15 +36,23 @@
   }
 
   // --- launcher tiles ---
+  var TILE_H = 104;
   function buildGrid(list) {
     var keep = moved && apps[focus] && apps[focus].id, at = 0;
     apps = list; tiles = []; focus = 0; grid.innerHTML = "";
-    cols = Math.max(1, Math.min(12, +CONFIG.columns || 6));
+    // Always two tight rows of small tiles at the top, so the weather and calendar panels keep
+    // their place: more apps add columns (up to 14); anything past 28 tiles is left to All apps.
+    cols = Math.max(1, Math.min(14, Math.max(+CONFIG.columns || 6, Math.ceil(list.length / 2))));
+    if (list.length > 2 * cols) apps = list.slice(0, 2 * cols - 3).concat(list.slice(-3));   // keep HDMI 1 / Set up / All apps
+    var h = TILE_H, gap = 12;
     grid.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
+    grid.style.gap = gap + "px";
     apps.forEach(function (a, i) {
       var d = document.createElement("div");
-      d.className = "tile" + (a.title.length > 14 ? " long" : "");
+      d.className = "tile" + (a.title.length > 10 ? " long" : "");
+      d.style.height = h + "px";
       d.style.background = a.color;
+      if (a.text) d.style.color = a.text;
       if (a.logo) {
         var img = document.createElement("img");
         img.src = a.logo; img.alt = a.title;

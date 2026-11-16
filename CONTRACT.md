@@ -200,12 +200,14 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
 - QR: `app/qr.js` exposes `QR.matrix(text)` → array of rows of booleans (byte mode, error
   correction M, smallest version that fits, versions 1–10 at least) and `QR.svg(text, sizePx)` →
   SVG markup string. UMD-style: `var QR = …; if (typeof module !== "undefined") module.exports = QR;`
-- App icons: tiles for apps without a `logo` use the TV's own icon from the app list
-  (`luna://com.webos.applicationManager/listApps` via `WebOSServiceBridge`/`PalmServiceBridge`;
-  fields `id`, `title`, `icon`, `largeIcon`, `iconColor`/`bgColor` where present — Assumed; if that call gives no apps, the same
-  list from `luna-send -n 1 luna://com.webos.service.applicationmanager/listApps '{}'` run as root
-  through Homebrew Channel), falling
-  back to the title on a solid colour. No streaming-service logos are bundled.
+- App icons: tiles use the TV's own icon for each app. listApps on webOS 6 reports `icon`/`largeIcon`
+  relative to the app's `folderPath` (Verified on an LG C1), and the web app may not read other
+  apps' folders (file:// fails, Verified), so the helper serves them: `GET /icons/<appId>`,
+  loopback only, no key (an `<img>` cannot send one), image files inside the TV's app folders only.
+  Without the helper, or for an app with no icon, the tile shows the title on the app's colour
+  (`bgColor`/`iconColor`), with dark text on light colours. No streaming-service logos are bundled.
+- Tile layout: always two rows of 104 px tiles at the top; more apps add columns (at least
+  `columns`, at most 14). Past 28 tiles the rest are reached through All apps.
 
 ## Root helper install (kiosk + service) — consent on the TV
 

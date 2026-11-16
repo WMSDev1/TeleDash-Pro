@@ -31,15 +31,23 @@ const tv = [{ id: "a.app", title: "A", largeIcon: "/usr/palm/applications/a.app/
   { id: "com.webos.app.settings", title: "S" }, { id: "com.webos.app.hdmi1", title: "HDMI1" }, { id: "com.teledashpro.dashboard", title: "Us" }];
 let t = H.tiles(null, tv);
 assert.deepStrictEqual(t.map(x => x.id), ["a.app", "b.app", "com.webos.app.hdmi1", "teledash.setup", "com.webos.app.home"]);
-assert.strictEqual(t[0].logo, "file:///usr/palm/applications/a.app/largeIcon.png"); assert.strictEqual(t[0].color, "#111111");
+assert.strictEqual(t[0].logo, "http://127.0.0.1:8770/icons/a.app"); assert.strictEqual(t[0].color, "#111111");
 assert.strictEqual(t[1].color, "#3d4450"); assert.strictEqual(t[4].exit, true); assert.strictEqual(t[3].setup, true);
 // A chosen list keeps its order; HDMI 1 only when listed; Set up always just before All apps.
 t = H.tiles([{ id: "com.webos.app.hdmi1", title: "Console" }, { id: "b.app", title: "Bee", color: "#222" }], tv);
-assert.deepStrictEqual(t.map(x => x.title), ["Console", "Bee", "Set up", "All apps"]); assert.strictEqual(t[1].logo, "file:///x/icon.png");
+assert.deepStrictEqual(t.map(x => x.title), ["Console", "Bee", "Set up", "All apps"]); assert.strictEqual(t[1].logo, "http://127.0.0.1:8770/icons/b.app");
 t = H.tiles([{ id: "com.webos.app.home", title: "All apps", exit: true }, { id: "b.app", title: "B" }], tv);
 assert.deepStrictEqual(t.map(x => x.id), ["teledash.setup", "com.webos.app.home", "b.app"]); assert.strictEqual(t[1].exit, true);
 assert.deepStrictEqual(H.tiles([{ id: "b.app", title: "B" }], tv).map(x => x.id), ["b.app", "teledash.setup", "com.webos.app.home"]);
 assert.deepStrictEqual(H.tiles(null, null).map(x => x.id), H.FIXED);
+// Icons as webOS 6 reports them: relative to folderPath (seen on an LG C1).
+assert.strictEqual(H.iconUrl({ id: "com.peacock.tv", largeIcon: "images/largeIcon.png" }), "http://127.0.0.1:8770/icons/com.peacock.tv");
+assert.strictEqual(H.iconUrl({ id: "x" }), "");
+assert.strictEqual(H.iconUrl({ id: "x", icon: "https://x/y.png" }), "https://x/y.png");
+// White tiles (Netflix, YouTube) get dark text; dark tiles light text.
+assert.strictEqual(H.textColor("#ffffff"), "#111111"); assert.strictEqual(H.textColor("#000000"), "#ffffff");
+assert.strictEqual(H.textColor("#fff200"), "#111111"); assert.strictEqual(H.textColor("bad"), "#ffffff");
+assert.strictEqual(H.tiles(null, [{ id: "netflix", title: "Netflix", bgColor: "#ffffff" }])[0].text, "#111111");
 // installAction
 assert.strictEqual(H.installAction("1.0.0\n", "1.0.0", 0, 0), "none");
 assert.strictEqual(H.installAction("0.9.0", "1.0.0", 0, 0), "silent");

@@ -75,15 +75,33 @@ var Helpers = (function () {
     });
     return out;
   }
-  // Tile for one app: its own icon from the TV and the TV's colour behind it (fields Assumed).
+  // The app's logo. The web app may not read other apps' folders on webOS 6 (Verified on an LG C1:
+  // file:// icon paths fail), so the setup helper, which runs as root, serves them. A URL icon is
+  // used as it is. If the helper is not running the image fails and the tile shows the name.
+  var ICONS = "http://127.0.0.1:8770/icons/";
+  function iconUrl(tv) {
+    var icon = tv && (tv.largeIcon || tv.icon);
+    if (!icon || !tv.id) return "";
+    if (/^https?:/i.test(icon)) return icon;
+    return ICONS + encodeURIComponent(tv.id);
+  }
+  // Dark text on light tiles (Netflix and YouTube report white), light text otherwise.
+  function textColor(bg) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(bg || "");
+    if (!m) return "#ffffff";
+    var n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? "#111111" : "#ffffff";
+  }
+  // Tile for one app: its own icon from the TV and the TV's colour behind it.
   function tileFor(id, title, color, tv) {
     var t = { id: id, title: title || (tv && tv.title) || id, color: color || "" };
     if (tv) {
-      var icon = tv.largeIcon || tv.icon;
-      if (icon) t.logo = /^[a-z]+:/i.test(icon) ? icon : "file://" + (icon.charAt(0) === "/" ? "" : "/") + icon;
+      var logo = iconUrl(tv);
+      if (logo) t.logo = logo;
       if (!t.color) t.color = tv.bgColor || tv.iconColor || "";
     }
     if (!t.color) t.color = "#3d4450";
+    t.text = textColor(t.color);
     return t;
   }
 
@@ -144,7 +162,7 @@ var Helpers = (function () {
     return a != null && b != null && t >= a && t < b;
   }
 
-  return { merge: merge, parseIso: parseIso, googleEvents: googleEvents, fmt: fmt, tvApps: tvApps,
+  return { merge: merge, parseIso: parseIso, iconUrl: iconUrl, textColor: textColor, googleEvents: googleEvents, fmt: fmt, tvApps: tvApps,
     tiles: tiles, pinnedIds: pinnedIds, installAction: installAction, inMorning: inMorning, FIXED: FIXED,
     TV_DATA: TV_DATA, APP_ID: APP_ID };
 })();

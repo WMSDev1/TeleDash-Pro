@@ -45,7 +45,8 @@ Under **Alerts** you can turn off:
   are looking at the screen. `HDMI 1`, `Set up` and `All apps` stay pinned at the end.
 - **Choose my own**: pick apps from the TV's list and put them in order. `HDMI 1` shows only if
   you add it; `Set up` always sits just before `All apps`.
-- **Columns**: how many tiles per row (6 by default).
+- **Columns**: the fewest tiles per row (6 by default). Tiles always fit in two rows, so with
+  more apps the row gets longer and the tiles smaller.
 
 The **All apps** tile opens LG's own home screen. If you have turned on the Home button
 setting, it also tells TeleDash Pro to leave you there until you open another app
