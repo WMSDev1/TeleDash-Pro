@@ -146,8 +146,7 @@ How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). How releases work:
 
 ## Licence
 
-A licence has **not been chosen yet**, and this repository does not contain a licence file.
-Until one is added, please open an issue before reusing the code elsewhere.
+MIT. See [LICENSE](LICENSE).
 
 ## Trademarks
 
