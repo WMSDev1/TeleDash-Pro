@@ -30,6 +30,9 @@ var DEFAULTS = {
     weekdays: { from: "06:30", to: "09:00" },
     weekends: { from: "07:30", to: "10:00" }
   },
+  // Standby turns into night mode (dark palette, dimmed picture) from this time until the
+  // morning brief starts, 07:00 on days without one. null: night mode only when chosen by hand.
+  night: { from: "22:00" },
   // Holiday countdowns plus your own dates: [{ title, date: "MM-DD" (yearly) or "YYYY-MM-DD" }].
   countdowns: { holidays: true, withinDays: 45, dates: [] },
   // "daily" re-sorts the tiles once a day by time in use over the last 30 days; "fixed" keeps list order.

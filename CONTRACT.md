@@ -80,6 +80,7 @@ Packaged with `ares-package --no-minify build/stage -o build`.
             "csv": { "date": "date", "value": "value", "flows": "", "time": "" } },
   "calendar": { "source": "none", "calendars": ["primary"] },
   "morning": { "weekdays": {"from":"06:30","to":"09:00"}, "weekends": {"from":"07:30","to":"10:00"} },
+  "night": { "from": "22:00" },
   "countdowns": { "holidays": true, "withinDays": 45, "dates": [] },
   "tileOrder": "daily",
   "pinned": ["com.webos.app.hdmi1", "com.webos.app.home"],
@@ -102,6 +103,8 @@ Packaged with `ares-package --no-minify build/stage -o build`.
 - `calendar.source`: `"none" | "ical" | "google"`.
 - `feed.format`: `"json"` (TeleDash feed, below) or `"csv"` (last row of a CSV; columns named in `feed.csv`).
 - `morning`: `"HH:MM"` 24-hour; `null` for a day group turns morning mode off for it.
+- `night.from`: `"HH:MM"`, when night hours start; they end when the morning brief starts on the day
+  they end (07:00 if that day has none). `night: null` turns automatic night mode off.
 - `countdowns.dates`: `[{ "title", "date": "MM-DD" | "YYYY-MM-DD" }]`.
 - `home.delaySeconds`: 0–30. `updates.auto`: default **false**.
 
@@ -130,6 +133,7 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `GET /api/local/calendar?days=2&tz=<minutes>` | `{ "source": "none" }`, or `{ "source": "ical", "ics": "<iCalendar text>" }`, or `{ "source": "google", "events": [ { "summary", "start", "end", "allDay" } ] }` (ISO 8601 times; all-day events use `YYYY-MM-DD`), covering today plus `days-1` more days in the TV's local time (Google: plus 2 h spare for a daylight-saving change). `tz` (optional) is the app's `Date#getTimezoneOffset()`, because node on the TV may not run in the zone the TV shows; outside −840…840 → 400. Cached ≤5 min |
 | `GET /api/local/feed` | `{ "title", "asOf", "items": [ { "label", "value", "change"?, "format"? } ] }`. Cached ≤5 min |
 | `GET /api/local/usage` | `text/plain` usage log (last 6000 lines) |
+| `POST /api/local/night` | body `{ "on": bool }` → `{ "night": bool, "changed": bool }`. On: saves the TV's picture settings (`backlight`, `contrast`, `brightness`, `energySaving`) to `$DATA/picture-day.json` unless already saved (never the night values themselves), then sets 0 / 70 / 50 / `"max"`. Off: restores the saved values and deletes the file; nothing saved → no change. Calls run in order. Anything but a boolean `on` → 400 |
 | `POST /api/local/update` | starts installing the latest release now (same steps as automatic update) → `{ "started": true }` or `{ "error" }` |
 
 ### Setup endpoints — from a phone on the same network
@@ -199,8 +203,11 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
   open an overlay: QR code of the `/api/local/pair` URL, the URL in text, and the code; it refreshes
   the code every 9 minutes while open. Back/Esc closes it.
 - Night mode: the `Night` tile, the red key (403) or launch parameter `{"night": true}` show the
-  idle view in a very dark, low-contrast amber-red palette (body class `night`). It ignores the
-  morning brief, pointer movement and the app returning to the front; any key press ends it.
+  idle view in a very dark, low-contrast amber-red palette (body class `night`) and call
+  `POST /api/local/night {"on": true}`. Going idle during night hours (`night`) enters it too, and
+  plain idle turns into it when night hours start. It ignores pointer movement and the app returning
+  to the front; a key press ends it, and so does the next night end (the morning brief start) after
+  it began. Ending it calls `{"on": false}`; so does every app start that is not in night mode.
   Launch parameter `{"idle": true}` opens straight into the ordinary idle view.
 - QR: `app/qr.js` exposes `QR.matrix(text)` → array of rows of booleans (byte mode, error
   correction M, smallest version that fits, versions 1–10 at least) and `QR.svg(text, sizePx)` →

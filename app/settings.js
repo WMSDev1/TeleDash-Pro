@@ -8,7 +8,7 @@
 //                                       every /api/local call must carry it as X-TeleDash-Local
 //   Settings.serviceUp()                true once the service has answered (and still does)
 //   Settings.calendar(cb) / pair(cb) -> cb(object or null); feed(cb) -> cb(object or null, HTTP status);
-//   usage(cb) -> cb(text or null)
+//   usage(cb) -> cb(text or null); night(on, cb) dims (on) or restores (off) the TV's picture
 var CONFIG;
 var Settings = (function () {
   var BASE = "http://127.0.0.1:8770", KEY = "teledash.settings", POLL_MS = 30000;
@@ -25,7 +25,7 @@ var Settings = (function () {
 
   // cb(data, text, status) — data is the parsed JSON (null when not JSON), data and text are null on
   // any failure; status is the HTTP status (0 when the helper did not answer at all).
-  function req(method, path, cb, ms) {
+  function req(method, path, cb, ms, body) {
     var done = false, x;
     function fin(d, t, s) { if (!done) { done = true; cb(d, t, s || 0); } }
     try {
@@ -39,16 +39,29 @@ var Settings = (function () {
       x.open(method, BASE + path);
       if (key) x.setRequestHeader("X-TeleDash-Local", key);
       x.timeout = ms || 8000;
-      x.send();
+      if (body !== undefined) { x.setRequestHeader("Content-Type", "application/json"); x.send(JSON.stringify(body)); }
+      else x.send();
     } catch (e) { fin(null, null, 0); }
   }
 
   // Reads the key only when needed (at start, after a refusal, on refresh), because each read
   // starts a root shell through Homebrew Channel.
+  // Calls that arrive while the key is being read wait for it, in order.
+  var waiting = null;
   function withKey(cb) {
+    if (waiting) { waiting.push(cb); return; }
     if (!needKey || !readKey) { cb(); return; }
     needKey = false;
-    readKey(function (k) { key = k || ""; cb(); });
+    waiting = [cb];
+    readKey(function (k) { key = k || ""; var w = waiting; waiting = null; w.forEach(function (f) { f(); }); });
+  }
+  // Night mode's picture: on dims it (the helper saves the owner's values first), off restores them.
+  // Retries once with a fresh key if refused.
+  function night(on, cb, again) {
+    withKey(function () { req("POST", "/api/local/night", function (d, t, status) {
+      if (status === 403 && !again) { needKey = true; night(on, cb, true); return; }
+      if (cb) cb(d);
+    }, 20000, { on: !!on }); });
   }
 
   function setUp(v) {
@@ -81,6 +94,7 @@ var Settings = (function () {
     calendar: function (cb) { req("GET", "/api/local/calendar?days=2&tz=" + new Date().getTimezoneOffset(), function (d) { cb(d); }, 30000); },
     feed: function (cb) { req("GET", "/api/local/feed", function (d, t, s) { cb(d, s); }, 30000); },
     usage: function (cb) { req("GET", "/api/local/usage", function (d, t) { cb(t); }, 10000); },
+    night: night,
     pair: function (cb) { req("POST", "/api/local/pair", function (d) { cb(d && d.url ? d : null); }, 8000); },
     KEY: KEY
   };

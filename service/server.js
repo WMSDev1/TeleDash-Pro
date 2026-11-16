@@ -221,6 +221,12 @@ function local(req, res, route, query) {
     return cached("feed", function () { return feed.fetchFeed(f, sec.feedToken, sec.feedTokenOrigin); })
       .then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
   }
+  if (key === "POST /api/local/night") {
+    return readJsonBody(req).then(function (b) {
+      if (!util.isObject(b) || typeof b.on !== "boolean") throw util.httpError(400, "Send {\"on\": true} or {\"on\": false}.");
+      return tv.nightPicture(b.on);
+    }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
   if (key === "GET /api/local/usage") return send(res, 200, usageLog(), "text/plain; charset=utf-8", CORS);
   if (key === "POST /api/local/update") {
     return updates.startUpdate().then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });

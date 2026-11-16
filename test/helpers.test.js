@@ -8,7 +8,7 @@ assert.deepStrictEqual(m.market.indexes, []); assert.strictEqual(m.market.show, 
 assert.strictEqual(H.merge(D, { weather: null }).weather, null);
 assert.notStrictEqual(H.merge(D, {}).alerts, D.alerts);  // no shared objects
 // config matches schema keys
-assert.deepStrictEqual(Object.keys(D), ["rev","apps","columns","idleSeconds","weather","alerts","market","feed","calendar","morning","countdowns","tileOrder","pinned","home","updates"]);
+assert.deepStrictEqual(Object.keys(D), ["rev","apps","columns","idleSeconds","weather","alerts","market","feed","calendar","morning","night","countdowns","tileOrder","pinned","home","updates"]);
 // parseIso
 assert.strictEqual(H.parseIso("2026-11-15").getTime(), new Date(2026, 10, 15).getTime());
 assert.strictEqual(H.parseIso("2026-11-15T09:30:00Z").getTime(), Date.UTC(2026, 10, 15, 9, 30));
@@ -55,6 +55,22 @@ assert.strictEqual(H.installAction("", "1.0.0", 0, 0), "consent");
 assert.strictEqual(H.installAction("", "1.0.0", 100, 50), "none");
 assert.strictEqual(H.installAction("", "1.0.0", 100, 150), "consent");
 assert.strictEqual(H.installAction("", null, 0, 0), "none");
+// night hours: 22:00 until the morning brief starts (06:30 weekdays, 07:30 weekends, 07:00 without one)
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 16, 21, 59)), false);  // Monday
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 16, 22, 0)), true);
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 17, 6, 29)), true);   // Tuesday
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 17, 6, 30)), false);
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 21, 7, 0)), true);    // Saturday: until 07:30
+assert.strictEqual(H.inNight(D, new Date(2026, 10, 16, 14, 0)), false);
+assert.strictEqual(H.inNight(H.merge(D, { night: null }), new Date(2026, 10, 16, 23, 0)), false);
+assert.strictEqual(H.inNight(H.merge(D, { morning: { weekdays: null } }), new Date(2026, 10, 17, 6, 45)), true);
+assert.strictEqual(H.inNight(H.merge(D, { night: { from: "01:00" } }), new Date(2026, 10, 17, 0, 30)), false);
+assert.strictEqual(H.inNight(H.merge(D, { night: { from: "01:00" } }), new Date(2026, 10, 17, 2, 0)), true);
+// night mode chosen at a time ends at the next morning
+assert.strictEqual(+H.nextNightEnd(D, new Date(2026, 10, 16, 23, 0)), +new Date(2026, 10, 17, 6, 30));
+assert.strictEqual(+H.nextNightEnd(D, new Date(2026, 10, 17, 2, 0)), +new Date(2026, 10, 17, 6, 30));
+assert.strictEqual(+H.nextNightEnd(D, new Date(2026, 10, 16, 15, 0)), +new Date(2026, 10, 17, 6, 30));   // a nap
+assert.strictEqual(+H.nextNightEnd(D, new Date(2026, 10, 20, 23, 0)), +new Date(2026, 10, 21, 7, 30));   // Friday night
 // inMorning
 assert.strictEqual(H.inMorning(D.morning, new Date(2026, 10, 16, 7, 0)), true);   // Monday
 assert.strictEqual(H.inMorning(D.morning, new Date(2026, 10, 15, 7, 0)), false);  // Sunday before 07:30

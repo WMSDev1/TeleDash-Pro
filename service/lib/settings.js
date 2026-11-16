@@ -21,6 +21,7 @@ var DEFAULTS = {
           csv: { date: "date", value: "value", flows: "", time: "" } },
   calendar: { source: "none", calendars: ["primary"] },
   morning: { weekdays: { from: "06:30", to: "09:00" }, weekends: { from: "07:30", to: "10:00" } },
+  night: { from: "22:00" },
   countdowns: { holidays: true, withinDays: 45, dates: [] },
   tileOrder: "daily",
   pinned: ["com.webos.app.hdmi1", "com.webos.app.home"],
@@ -200,6 +201,14 @@ var V = {
       weekdays: morningGroup(o.weekdays, cur.weekdays, "morning.weekdays"),
       weekends: morningGroup(o.weekends, cur.weekends, "morning.weekends")
     };
+  },
+  // Night hours start; they end when that morning's brief starts (07:00 on days without one).
+  // null: night mode only when chosen by hand.
+  night: function (v, cur) {
+    if (v === null) return null;
+    var o = merge(v, cur || DEFAULTS.night, "night", ["from"]);
+    if (typeof o.from !== "string" || !TIME.test(o.from)) bad("night.from must be a time like 22:00.");
+    return { from: o.from };
   },
   countdowns: function (v, cur) {
     var o = merge(v, cur, "countdowns", ["holidays", "withinDays", "dates"]);

@@ -164,7 +164,31 @@ var Helpers = (function () {
     return a != null && b != null && t >= a && t < b;
   }
 
-  return { merge: merge, parseIso: parseIso, iconUrl: iconUrl, textColor: textColor, googleEvents: googleEvents, fmt: fmt, tvApps: tvApps,
+  // Night hours: from settings.night.from until the morning brief starts (on the day night ends),
+  // 07:00 when that day has no brief. Off when settings.night is null.
+  function nightEnd(cfg, d) {
+    var m = cfg && cfg.morning, w = m && ((d.getDay() === 0 || d.getDay() === 6) ? m.weekends : m.weekdays);
+    var b = w ? hm(w.from) : null;
+    return b == null ? 7 * 60 : b;
+  }
+  function inNight(cfg, now) {
+    var a = cfg && cfg.night ? hm(cfg.night.from) : null;
+    if (a == null) return false;
+    var b = nightEnd(cfg, now), t = now.getHours() * 60 + now.getMinutes();
+    return a > b ? (t >= a || t < b) : (t >= a && t < b);
+  }
+  // When night mode entered at now ends by itself: the next night end (morning) after now.
+  function nextNightEnd(cfg, now) {
+    for (var i = 0; i < 2; i++) {
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      var e = nightEnd(cfg, d);
+      d.setHours(Math.floor(e / 60), e % 60, 0, 0);
+      if (d > now) return d;
+    }
+    return d;
+  }
+
+  return { merge: merge, inNight: inNight, nextNightEnd: nextNightEnd, parseIso: parseIso, iconUrl: iconUrl, textColor: textColor, googleEvents: googleEvents, fmt: fmt, tvApps: tvApps,
     tiles: tiles, pinnedIds: pinnedIds, installAction: installAction, inMorning: inMorning, FIXED: FIXED,
     TV_DATA: TV_DATA, APP_ID: APP_ID };
 })();

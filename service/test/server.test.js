@@ -119,6 +119,20 @@ t.test("local endpoints answer loopback with CORS", function () {
   });
 });
 
+t.test("night mode's picture endpoint", function () {
+  return req("POST", "/api/local/night", { body: { on: "yes" } }).then(function (r) {
+    assert.strictEqual(r.status, 400);
+    return req("POST", "/api/local/night", { body: { on: false } });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(r.json, { night: false, changed: false });    // nothing dimmed, nothing to undo
+    return req("POST", "/api/local/night", { noKey: true, body: { on: true } });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 403);
+    assert.ok(!fs.existsSync(path.join(DATA, "picture-day.json")));
+  });
+});
+
 t.test("local endpoints refuse loopback callers without the key (web pages, other apps)", function () {
   return req("GET", "/api/local/state", { noKey: true }).then(function (r) {
     assert.strictEqual(r.status, 403);

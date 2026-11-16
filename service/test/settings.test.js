@@ -23,6 +23,7 @@ t.test("defaults match the contract", function () {
 
 t.test("unknown keys are rejected, top level and nested", function () {
   return Promise.all([
+    t.rejects(function () { apply({ night: { from: "10pm" } }); }, /night.from must be a time/),
     t.rejects(function () { apply({ colour: 1 }); }, /Unknown setting: colour/, 400),
     t.rejects(function () { apply({ home: { opens: true } }); }, /Unknown setting: home.opens/),
     t.rejects(function () { apply({ feed: { csv: { extra: "x" } } }); }, /Unknown setting: feed.csv.extra/),
@@ -54,6 +55,10 @@ t.test("partial updates merge; rev is not client-settable", function () {
   assert.deepStrictEqual(s.home, { opensDashboard: false, delaySeconds: 5 });
   assert.deepStrictEqual(s.feed.csv, { date: "date", value: "value", flows: "deposits", time: "" });
   assert.strictEqual(apply({ morning: { weekends: null } }).morning.weekends, null);
+  assert.deepStrictEqual(apply({}).night, { from: "22:00" });
+  assert.deepStrictEqual(apply({ night: { from: "23:30" } }).night, { from: "23:30" });
+  assert.strictEqual(apply({ night: null }).night, null);
+  assert.deepStrictEqual(settings.apply(apply({ night: null }), { night: { from: "21:00" } }).night, { from: "21:00" });
   assert.deepStrictEqual(apply({ morning: { weekdays: { from: "05:00" } } }).morning.weekdays, { from: "05:00", to: "09:00" });
   assert.deepStrictEqual(apply({ calendar: { calendars: [] } }).calendar.calendars, ["primary"]);
   var ok = apply({ feed: { enabled: true, url: "github:example/feeds/data/account.csv@main", format: "csv" }, countdowns: { dates: [{ title: "Trip", date: "2027-02-12" }, { title: "Leap", date: "02-29" }] } });

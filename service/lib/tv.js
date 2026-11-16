@@ -159,7 +159,55 @@ function relaunchApp() {
   });
 }
 
+// Picture settings for night mode. The day values are saved to $DATA/picture-day.json when night
+// mode starts and put back when it ends, so whatever the owner had is restored, not our defaults.
+var PICTURE_KEYS = ["backlight", "contrast", "brightness", "energySaving"];
+var NIGHT_PICTURE = { backlight: 0, contrast: 70, brightness: 50, energySaving: "max" };
+var DAY_PICTURE = { backlight: 80, contrast: 100, brightness: 90, energySaving: "auto" };
+var PICTURE_FILE = "picture-day.json";
+function getPicture() {
+  return luna("luna://com.webos.settingsservice/getSystemSettings", { category: "picture", keys: PICTURE_KEYS })
+    .then(function (r) { return r && r.settings ? r.settings : null; });
+}
+function setPicture(p) {
+  var s = {};
+  PICTURE_KEYS.forEach(function (k) { if (p && p[k] !== undefined) s[k] = p[k]; });
+  return luna("luna://com.webos.settingsservice/setSystemSettings", { category: "picture", settings: s })
+    .then(function (r) { return !!(r && r.returnValue !== false); });
+}
+function isNightPicture(p) {
+  return !!p && +p.backlight === NIGHT_PICTURE.backlight && p.energySaving === NIGHT_PICTURE.energySaving;
+}
+// on: save the day values (once; never the night values themselves), then dim.
+// off: put the saved values back and forget them. Nothing saved means nothing to undo, so a
+// picture the owner set by hand is left alone. Calls run one at a time, in the order they came.
+var pictureQueue = Promise.resolve();
+function nightPicture(on) {
+  var run = pictureQueue.then(function () {
+    var f = store.file(PICTURE_FILE);
+    if (!on) {
+      if (!fs.existsSync(f)) return { night: false, changed: false };
+      var saved = store.readJson(PICTURE_FILE, null) || DAY_PICTURE;
+      return setPicture(saved).then(function (ok) {
+        if (ok) { try { fs.unlinkSync(f); } catch (e) {} }
+        log("night mode off: picture restored" + (ok ? "" : " (failed)"));
+        return { night: false, changed: ok };
+      });
+    }
+    var save = fs.existsSync(f) ? Promise.resolve() : getPicture().then(function (cur) {
+      store.writeJson(PICTURE_FILE, cur && !isNightPicture(cur) ? cur : DAY_PICTURE);
+    });
+    return save.then(function () { return setPicture(NIGHT_PICTURE); }).then(function (ok) {
+      log("night mode on: picture dimmed" + (ok ? "" : " (failed)"));
+      return { night: true, changed: ok };
+    });
+  });
+  pictureQueue = run.catch(function () {});
+  return run;
+}
+
 module.exports = {
+  nightPicture: nightPicture, NIGHT_PICTURE: NIGHT_PICTURE,
   listApps: listApps, appIcon: appIcon, lanAddress: lanAddress, isPrivate: isPrivate, writeKiosk: writeKiosk, ensureKiosk: ensureKiosk,
   restartSystem: restartSystem, hasLuna: hasLuna, installIpk: installIpk, foregroundApp: foregroundApp, relaunchApp: relaunchApp
 };

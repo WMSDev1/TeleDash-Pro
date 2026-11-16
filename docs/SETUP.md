@@ -102,10 +102,14 @@ After this many seconds without a button press (120 by default) the screen dims 
 moving clock and weather view, to be kind to the panel. Any button wakes it.
 
 **Night mode** is a darker version for sleeping with the TV on: the clock, date and temperature
-in a very dim amber-red, everything else hidden. Start it with the **Night** tile or the remote's
-**red** button. It stays on until you press a button: no morning brief, and moving the remote's
-pointer does not wake it. To make the panel itself dimmer too, lower the TV's own picture
-settings (Settings → Picture → OLED Pixel Brightness).
+in a very dim amber-red, everything else hidden, and the TV's own picture turned right down
+(backlight 0, contrast 70, brightness 50, energy saving maximum). From 10 pm until the morning
+brief starts (7:00 on days without one) the idle view goes straight to night mode; during the day
+it stays the ordinary idle view. You can also start night mode any time with the **Night** tile or
+the remote's **red** button. Moving the remote's pointer does not wake it; a button press does,
+and so does the start of the morning brief. Either way your picture settings go back to exactly
+what they were. To change when night hours start, set `night.from` (or `null` for hand-started
+night mode only) — see [CONTRACT.md](../CONTRACT.md).
 
 ## 10. Home button
 

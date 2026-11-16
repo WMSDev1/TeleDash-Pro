@@ -47,23 +47,38 @@ tree() {
   echo $all
 }
 
-# stop_one <name> <command-line marker>: stop the process recorded in $DATA/<name>.pid.
+# Processes whose first argument is exactly $1 ("node <marker>", "sh <marker>"): copies started
+# by hand or left behind with a stale pid file. Exact match, so a shell whose command merely
+# mentions the path (sh -c "... server.js") is never caught. Needs /proc (on the TV).
+strays() {
+  for d in /proc/[0-9]*; do
+    p=${d#/proc/}
+    [ "$p" = "$$" ] && continue
+    a1=$(tr '\000' '\n' < "$d/cmdline" 2>/dev/null | sed -n 2p)
+    [ "$a1" = "$1" ] && echo "$p"
+  done
+}
+
+# stop_one <name> <command-line marker>: stop the process recorded in $DATA/<name>.pid, and any
+# other copy running the same file.
 stop_one() {
   pidfile=$DATA/$1.pid
-  [ -f "$pidfile" ] || return 0
+  found=""
   pid=$(cat "$pidfile" 2>/dev/null)
   case "$pid" in
     ''|*[!0-9]*) ;;
-    *)
-      if pid_matches "$pid" "$2"; then
-        pids=$(tree "$pid")
-        kill $pids 2>/dev/null
-        n=0
-        while kill -0 "$pid" 2>/dev/null && [ $n -lt 3 ]; do sleep 1; n=$((n + 1)); done
-        kill -0 "$pid" 2>/dev/null && kill -9 $pids 2>/dev/null
-        echo "stopped $1 ($pid)"
-      fi ;;
+    *) pid_matches "$pid" "$2" && found=$pid ;;
   esac
+  [ -r /proc/self/stat ] && found="$found $(strays "$2")"
+  for pid in $(echo $found | tr ' ' '\n' | sort -u); do
+    kill -0 "$pid" 2>/dev/null || continue
+    pids=$(tree "$pid")
+    kill $pids 2>/dev/null
+    n=0
+    while kill -0 "$pid" 2>/dev/null && [ $n -lt 3 ]; do sleep 1; n=$((n + 1)); done
+    kill -0 "$pid" 2>/dev/null && kill -9 $pids 2>/dev/null
+    echo "stopped $1 ($pid)"
+  done
   rm -f "$pidfile"
 }
 

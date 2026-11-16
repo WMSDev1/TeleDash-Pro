@@ -27,8 +27,10 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
 - **Countdowns**: days until holidays and your own dates.
 - **Idle view**: after two minutes without a button press, a dim clock and weather that drift
   slowly around the screen.
-- **Night mode**: the same drifting clock in a very dark amber-red, for sleeping with the TV on.
-  Start it with the **Night** tile or the remote's **red** button; only a button press ends it.
+- **Night mode**: the same drifting clock in a very dark amber-red, with the TV's picture turned
+  right down, for sleeping with the TV on. The idle view switches to it by itself from 10 pm until
+  the morning brief; start it any time with the **Night** tile or the remote's **red** button. A
+  button press or the morning brief ends it, and your picture settings come back as they were.
 - **Home button** (optional): make the remote's Home button open TeleDash Pro instead of
   LG's home screen. Off by default. See [docs/HOME-BUTTON.md](docs/HOME-BUTTON.md).
 

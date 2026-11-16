@@ -143,12 +143,18 @@
   function setIdleMs() { idleMs = (qi ? +qi[1] : +CONFIG.idleSeconds || 0) * 1000; }
   function isIdle() { return document.body.classList.contains("idle"); }
   function isBrief() { return document.body.classList.contains("brief"); }
-  // Night mode: the idle view in a very dark, low-contrast palette, chosen by hand (Night tile,
-  // red button, or launch parameter night). It stays until a real button press: no morning
-  // brief, no waking on pointer movement or when the app comes back to the front.
+  // Night mode: the idle view in a very dark, low-contrast palette, with the TV's picture dimmed
+  // (the helper saves the owner's picture settings and puts them back when night mode ends).
+  // Chosen by hand (Night tile, red button, launch parameter night), or automatic when the screen
+  // goes idle during night hours (settings.night). It ends at a real button press or when the
+  // morning brief starts; pointer movement and coming back to the front do not wake it.
+  var nightEndsAt = 0;
   function isNight() { return document.body.classList.contains("night"); }
+  function nightHours(now) { return Helpers.inNight(CONFIG, now || new Date()); }
   function goNight() {
     clearTimeout(idleTimer);
+    nightEndsAt = +Helpers.nextNightEnd(CONFIG, new Date());
+    if (!isNight()) Settings.night(true);
     document.body.classList.remove("brief");
     document.body.classList.add("night");
     document.body.classList.add("idle");
@@ -166,10 +172,17 @@
     idleEl.style.transform = "translate(" + Math.round(60 + Math.random() * 1040) + "px," +
       Math.round(60 + Math.random() * 520) + "px)";
   }
+  // Leaves night mode (picture back to the owner's settings); the caller decides what shows next.
+  function endNight() {
+    if (!isNight()) return;
+    document.body.classList.remove("night");
+    Settings.night(false);
+  }
   function goIdle() {
     if (overlay) { idleTimer = setTimeout(goIdle, idleMs); return; }   // not while the setup screen is up
     if (isNight()) return;
     if (inMorning()) { showBrief(); return; }
+    if (nightHours()) { goNight(); return; }
     document.body.classList.remove("brief");
     document.body.classList.add("idle");
     setWeatherBackgroundPaused(true);
@@ -177,17 +190,24 @@
   }
   function wake() {                                            // returns true if it was idle or showing the brief
     var was = isIdle() || isBrief();
-    if (was) { document.body.classList.remove("idle"); document.body.classList.remove("brief"); document.body.classList.remove("night"); setWeatherBackgroundPaused(false); }
+    endNight();
+    if (was) { document.body.classList.remove("idle"); document.body.classList.remove("brief"); setWeatherBackgroundPaused(false); }
     if (pendingGrid) { pendingGrid = false; buildGrid(tileList()); }
     clearTimeout(idleTimer);
     if (idleMs > 0) idleTimer = setTimeout(goIdle, idleMs);
     return was;
   }
   setInterval(drift, 60000);
-  // Each minute: brighten a dim screen into the brief when the morning window opens, dim the
-  // brief when it closes, refresh the brief, and pick up a new day's tile order.
+  // Each minute: end night mode in the morning, darken plain standby when night hours start,
+  // brighten a dim screen into the brief when the morning window opens, dim the brief when it
+  // closes, refresh the brief, and pick up a new day's tile order.
   setInterval(function () {
-    if (isNight()) return;
+    if (isNight()) {
+      if (Date.now() < nightEndsAt) return;
+      endNight();
+      goIdle();                                                // the brief, or plain standby
+    }
+    else if (isIdle() && !isBrief() && nightHours()) { goNight(); return; }
     if (isIdle() && inMorning()) showBrief();
     else if (isBrief() && !inMorning()) goIdle();
     else if (isBrief()) renderBrief();
@@ -764,6 +784,9 @@
   });
 
   Settings.start(applySettings, onStatus, readKey);
+  // A fresh start is never in night mode: undo a dimmed picture left behind (the TV was switched
+  // off at night). Sent after start so it waits for the key; a no-op when nothing was dimmed.
+  if (!isNight()) Settings.night(false);
   helperCheck();
   if (/[?&]setup=demo/.test(location.search)) openSetup();
 })();
