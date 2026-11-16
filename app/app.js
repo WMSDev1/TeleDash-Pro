@@ -177,14 +177,18 @@
     else if (isBrief()) renderBrief();
     dailyOrder();
   }, 60000);
-  document.addEventListener("mousemove", function () { wake(); });
+  // A standby launch (launch parameter idle) ignores the visibility change and stray pointer
+  // events that arrive just after launch; only a button press wakes it during that time.
+  var holdIdle = 0;
+  function holding() { return Date.now() < holdIdle; }
+  document.addEventListener("mousemove", function () { if (!holding()) wake(); });
   // Back in front: normally the dashboard. After a long absence inside the morning window (the TV
   // was just switched on), go straight to the brief. Catch up on anything that went stale meanwhile.
   var hiddenAt = null;
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) { hiddenAt = Date.now(); return; }
     var away = hiddenAt ? Date.now() - hiddenAt : 0;
-    wake();
+    if (!holding()) wake();
     if (away > 30 * 60000 && inMorning()) showBrief();
     if (away > 60000) { loadTvApps(); Settings.refresh(); }
     if (lastOk && new Date() - lastOk > REFRESH_MS) { weather(); calendar(); }
@@ -192,6 +196,7 @@
 
   document.addEventListener("keydown", function (e) {
     var k = e.keyCode;
+    holdIdle = 0;                                              // a real button press always counts
     if (overlay) { e.preventDefault(); wake(); overlayKey(k); return; }
     if (wake()) { e.preventDefault(); return; }                // first press only wakes the screen
     if (k >= 37 && k <= 40) moved = true;
@@ -731,10 +736,14 @@
   // idle view instead of waiting for the idle timer. Works for a fresh launch and a relaunch.
   function launchIdle(p) {
     if (typeof p === "string") { try { p = JSON.parse(p || "{}"); } catch (e) { p = {}; } }
-    if (p && p.idle) setTimeout(function () { if (!isIdle()) goIdle(); }, 1500);
+    if (!(p && p.idle)) return;
+    holdIdle = Date.now() + 10000;
+    [300, 1500, 4000].forEach(function (ms) { setTimeout(function () { if (holding() && !isIdle()) goIdle(); }, ms); });
   }
   if (window.PalmSystem) launchIdle(window.PalmSystem.launchParams);
-  document.addEventListener("webOSRelaunch", function (e) { launchIdle(e && e.detail); });
+  document.addEventListener("webOSRelaunch", function (e) {
+    launchIdle((e && e.detail) || (window.PalmSystem && window.PalmSystem.launchParams));
+  });
 
   Settings.start(applySettings, onStatus, readKey);
   helperCheck();

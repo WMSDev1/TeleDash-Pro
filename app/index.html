@@ -68,6 +68,14 @@
   #inet { font-size: 36px; margin-top: 14px; }
   body.idle #top, body.idle #grid, body.idle #forecast, body.idle #status { display: none; }
   body.idle #idle { display: block; }
+  /* Standby is watched in a dark bedroom: dark grey text, dimmed accents (all still at the 0.5 opacity above). */
+  #idle { color: #6b7078; }
+  #idate { color: #5a5f66; }
+  #iwx { color: #4f545b; }
+  #idle #icount { color: #6b5a33; }
+  #idle #inet, #idle #ialert { color: #6b5420; }
+  #idle #ialert.severe { color: #8a4040; }
+  #idle #inet::before { background: #6b5420; }
   #status { position: absolute; left: 100px; bottom: 14px; font-size: 24px; color: #7d8794; }
 
   /* Countdown line under the date; air quality and weather warnings under the weather. */
