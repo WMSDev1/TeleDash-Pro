@@ -77,7 +77,8 @@ Bump `version` in `app/appinfo.json` whenever you change anything in `app/`, `se
 app's own "re-install the helper after an update" step) only notice a change when the version
 goes up. Use `X.Y.Z`: raise Z for fixes, Y for new features.
 
-Releases are cut by maintainers by tagging; see [docs/RELEASING.md](docs/RELEASING.md).
+Merging a pull request with a raised version publishes a release; see
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Trying it on a TV
 

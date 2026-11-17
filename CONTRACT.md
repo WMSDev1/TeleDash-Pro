@@ -276,7 +276,9 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
   above, `icon.png` and the repository index `apps.json` (format taken from webosbrew's sources:
   `{ paging, packages: [ { id, title, manifestUrl, manifest, pool, … } ] }`; users add
   `<pagesBase>/repo/apps.json` in Homebrew Channel — not yet tried on a TV), plus `oauth/`.
-- Releases are tag-driven (`v*`). `app/appinfo.json` `version` must equal the tag.
+- Releases run on push to `main`: a `version` in `app/appinfo.json` with no GitHub Release yet is
+  built and published, and the workflow creates the tag `v<version>`. It must be newer than the
+  latest release; an already released version publishes nothing.
 
 ## Tests and checks (CI and local)
 
