@@ -74,7 +74,9 @@ What this does **not** protect against:
 - TeleDash Pro only asks for **read-only** calendar access
   (`https://www.googleapis.com/auth/calendar.readonly`). It cannot create, change or delete
   events.
-- It uses **your own** Google Cloud project, so no one else's app holds your sign-in.
+- Release builds sign in through the project's own Google client; the sign-in tokens are kept on
+  your TV only. You may use your own Google client instead (setup page, Advanced).
+  Privacy policy: the project site's `privacy/` page (`site/privacy/index.html`).
 - You can revoke access at any time at <https://myaccount.google.com/permissions>.
 - Sign-in returns through a static page on the project's GitHub Pages site. That page only ever
   forwards to a private home-network address (`10.x`, `172.16–31.x`, `192.168.x`), never to
