@@ -59,6 +59,9 @@ access to anyone's calendar.
    gh secret set TELEDASH_GOOGLE_CLIENT < google-client.json
    ```
 
+   The release job stops with an error if this secret is missing, rather than publishing a
+   package without Google sign-in.
+
 Until the app is verified, users see "Google hasn't verified this app" once and the client is
 limited to 100 users in total. Verification (later) needs the homepage, a privacy policy, and a
 short video of the sign-in, and Google's review.
