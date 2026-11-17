@@ -1,6 +1,6 @@
 {
   "id": "com.teledashpro.dashboard",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "vendor": "TeleDash Pro",
   "type": "web",
   "main": "index.html",
