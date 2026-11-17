@@ -165,7 +165,7 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
    redirect URI `<pagesBase>/oauth/`. No client → `POST /api/google/start` returns 400.
 2. `POST /api/google/start` creates `state = base64url(JSON {"t": "http://<lan-ip>:8770", "n": "<nonce>"})`
    and a PKCE verifier/challenge (S256), remembers nonce → verifier for 10 minutes, and returns
-   `https://accounts.google.com/o/oauth2/v2/auth?client_id=…&redirect_uri=<pagesBase>/oauth/&response_type=code&scope=https://www.googleapis.com/auth/calendar.readonly&access_type=offline&prompt=consent&state=…&code_challenge=…&code_challenge_method=S256`.
+   `https://accounts.google.com/o/oauth2/v2/auth?client_id=…&redirect_uri=<pagesBase>/oauth/&response_type=code&scope=https://www.googleapis.com/auth/calendar.readonly&access_type=offline&prompt=select_account%20consent&state=…&code_challenge=…&code_challenge_method=S256`.
 3. Google returns the phone to `site/oauth/index.html`, which decodes `state`, **checks `t` is
    `http://` + a private IPv4 address (10/8, 172.16/12, 192.168/16) + `:` port**, and only then
    does `location.replace(t + "/oauth/return" + location.search)`. Anything else: shows an error,

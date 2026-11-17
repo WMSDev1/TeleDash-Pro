@@ -37,7 +37,7 @@ t.test("start builds the contract's auth URL and state", function () {
   assert.strictEqual(q.redirect_uri, PAGES + "/oauth/");
   assert.strictEqual(q.scope, "https://www.googleapis.com/auth/calendar.readonly");
   assert.strictEqual(q.access_type, "offline");
-  assert.strictEqual(q.prompt, "consent");
+  assert.strictEqual(q.prompt, "select_account consent");
   assert.strictEqual(q.response_type, "code");
   assert.strictEqual(q.code_challenge_method, "S256");
   var st = JSON.parse(util.fromB64url(q.state).toString("utf8"));

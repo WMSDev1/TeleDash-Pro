@@ -80,9 +80,16 @@ jobs:
       - name: Build the ipk
         env:
           EXPECT_VERSION: ${{ steps.meta.outputs.version }}
-          # Repository secret: the Google OAuth client JSON (ADR-31). Optional.
+          # Repository secret: the Google OAuth client JSON (ADR-31). Required for releases.
           TELEDASH_GOOGLE_CLIENT: ${{ secrets.TELEDASH_GOOGLE_CLIENT }}
-        run: bash scripts/build.sh
+        run: |
+          # A release without the built-in client would silently fall back to "bring your own
+          # client" on every TV, so stop here instead.
+          if [ -z "$TELEDASH_GOOGLE_CLIENT" ]; then
+            echo "::error::Repository secret TELEDASH_GOOGLE_CLIENT is not set (docs/RELEASING.md, The project's Google client)."
+            exit 1
+          fi
+          bash scripts/build.sh
 
       - name: Homebrew Channel manifest and repository index
         env:

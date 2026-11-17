@@ -52,9 +52,11 @@ function start(origin, pagesBase) {
   pending.set(nonce, { verifier: verifier, expires: Date.now() + STATE_MS, client: c.id });
   prune();
   var state = util.b64url(Buffer.from(JSON.stringify({ t: origin, n: nonce })));
+  // select_account: always show Google's account picker, even with one account signed in.
+  // consent: always ask, so Google sends a refresh token every time (needed by the TV).
   var q = {
     client_id: c.id, redirect_uri: redirectUri(pagesBase), response_type: "code", scope: SCOPE,
-    access_type: "offline", prompt: "consent", state: state, code_challenge: challenge, code_challenge_method: "S256"
+    access_type: "offline", prompt: "select_account consent", state: state, code_challenge: challenge, code_challenge_method: "S256"
   };
   return { authUrl: AUTH + "?" + http.form(q), state: state };
 }
