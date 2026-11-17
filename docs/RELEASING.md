@@ -44,6 +44,10 @@ access to anyone's calendar.
      policy link** `https://<owner>.github.io/<Repo>/privacy/` (`site/privacy/index.html`,
      published with each release). Google will not publish the app without them.
    - **Authorized domains**: `<owner>.github.io`.
+   - Google's branding check also needs proof that you own the home page: in Google Search
+     Console (same Google account as the Cloud project) add a **URL prefix** property for the
+     home page and verify it with the **HTML file** method. The file goes in `site/` (this
+     project's is `site/google94e74883a7fd90b2.html`); keep it there, or ownership lapses.
 4. **Audience**: user type **External**. Then **Publish app** so the status is **In
    production**. Do not leave it in **Testing**: sign-ins would expire after about seven days
    and only listed test users could sign in. Do not submit for verification yet.
