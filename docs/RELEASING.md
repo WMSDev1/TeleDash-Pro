@@ -40,10 +40,13 @@ access to anyone's calendar.
    - **App name** `TeleDash Pro`; **User support email** and **Developer contact**: the
      maintainer's address (Google shows the support email on the consent screen).
    - Leave the logo empty: adding one requires Google's verification before it shows.
+   - **Application home page** `https://<owner>.github.io/<Repo>/` and **Application privacy
+     policy link** `https://<owner>.github.io/<Repo>/privacy/` (`site/privacy/index.html`,
+     published with each release). Google will not publish the app without them.
+   - **Authorized domains**: `<owner>.github.io`.
 4. **Audience**: user type **External**. Then **Publish app** so the status is **In
    production**. Do not leave it in **Testing**: sign-ins would expire after about seven days
-   and only listed test users could sign in. Do not submit for verification yet: that needs a
-   homepage and privacy policy on a domain the project owns.
+   and only listed test users could sign in. Do not submit for verification yet.
 5. **Data access**: **Add or remove scopes**, add
    `https://www.googleapis.com/auth/calendar.readonly`, save.
 6. **Clients → Create client**:

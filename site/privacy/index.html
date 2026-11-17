@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>TeleDash Pro privacy policy</title>
+<meta name="description" content="What TeleDash Pro does with your data, including Google Calendar.">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+  <h1>Privacy policy</h1>
+  <p class="lead">TeleDash Pro is an open-source home screen for LG webOS TVs. It runs entirely on
+    your TV. There is no TeleDash server, no account, and no analytics or tracking.</p>
+  <p class="muted">Effective 17 November 2026.</p>
+
+  <h2>Google Calendar</h2>
+  <p>If you choose to connect Google Calendar, TeleDash Pro asks Google for <strong>read-only</strong>
+    access to your calendars (<code>https://www.googleapis.com/auth/calendar.readonly</code>).
+    It cannot create, change or delete anything.</p>
+  <ul>
+    <li><strong>What it reads:</strong> the list of your calendars (so you can choose which to show)
+      and, for the calendars you choose, the title, start time and end time of events from today
+      for the next few days.</li>
+    <li><strong>What it does with it:</strong> shows those events on your TV. Nothing else.</li>
+    <li><strong>Where it goes:</strong> your TV fetches the events directly from Google. They are
+      kept in the TV's memory for a few minutes and are not saved to disk. They are never sent to
+      the TeleDash Pro developers or to anyone else.</li>
+    <li><strong>Sign-in tokens</strong> that Google issues are stored only on your TV, in a file
+      readable only by the TV's administrator (root) account.</li>
+    <li><strong>Sign-in return page:</strong> after you sign in on your phone, Google sends your
+      phone to a page on this site, which passes the result straight to your TV on your home
+      network. The page does not store or transmit it anywhere else. This site is hosted by
+      GitHub Pages, which may keep standard web server logs (such as IP addresses) under
+      GitHub's own privacy statement.</li>
+  </ul>
+  <p>TeleDash Pro's use and transfer of information received from Google APIs adheres to the
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API
+    Services User Data Policy</a>, including the Limited Use requirements. Google user data is
+    not sold, not shared with third parties, not used for advertising, and not used to develop,
+    improve or train artificial intelligence or machine learning models.</p>
+
+  <h2>Removing access and deleting data</h2>
+  <ul>
+    <li>On the TV's setup page, <strong>Disconnect Google</strong> deletes the sign-in tokens from
+      the TV.</li>
+    <li>You can revoke TeleDash Pro's access at any time at
+      <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    <li>Uninstalling TeleDash Pro and its helper removes everything it stored on the TV.</li>
+  </ul>
+
+  <h2>Other data</h2>
+  <ul>
+    <li><strong>Settings and keys</strong> you enter on the setup page stay on your TV.</li>
+    <li><strong>Your location</strong>, if you set one for weather, is rounded to about 10 km
+      before it is saved.</li>
+    <li><strong>App usage</strong> (which TV app was open, and when) is recorded on the TV only, to
+      order the tiles. It never leaves the TV.</li>
+    <li>The TV contacts only the services you turn on: Open-Meteo (weather and air quality), the
+      US National Weather Service (warnings), a public stock-quote service (market strip), your
+      calendar provider, your data-feed address, and this site (update checks). Each of them sees
+      your home's internet address when asked for data.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy: open an issue on the project's GitHub repository. Security
+    problems: use the repository's private vulnerability reporting (Security tab).</p>
+
+  <footer><a href="../">TeleDash Pro</a> is open source. Not affiliated with LG Electronics or Google.</footer>
+</main>
+</body>
+</html>
