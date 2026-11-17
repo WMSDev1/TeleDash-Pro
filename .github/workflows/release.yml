@@ -99,13 +99,13 @@ jobs:
         if: steps.meta.outputs.release == 'true'
         env:
           EXPECT_VERSION: ${{ steps.meta.outputs.version }}
-          # Repository secret: the Google OAuth client JSON (ADR-31). Required for releases.
-          TELEDASH_GOOGLE_CLIENT: ${{ secrets.TELEDASH_GOOGLE_CLIENT }}
+          # Repository secret GOOGLE_CLIENT: the Google OAuth client JSON (ADR-31). Required for releases.
+          TELEDASH_GOOGLE_CLIENT: ${{ secrets.GOOGLE_CLIENT }}
         run: |
           # A release without the built-in client would silently fall back to "bring your own
           # client" on every TV, so stop here instead.
           if [ -z "$TELEDASH_GOOGLE_CLIENT" ]; then
-            echo "::error::Repository secret TELEDASH_GOOGLE_CLIENT is not set (docs/RELEASING.md, The project's Google client)."
+            echo "::error::Repository secret GOOGLE_CLIENT is not set (docs/RELEASING.md, The project's Google client)."
             exit 1
           fi
           bash scripts/build.sh
