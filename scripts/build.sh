@@ -45,7 +45,7 @@ rm -rf "$STAGE"
 copy_tree app "$STAGE"
 cp project.json "$STAGE/project.json"
 copy_tree service "$STAGE/server"
-# The project's Google sign-in client (ADR-31): from $TELEDASH_GOOGLE_CLIENT (the release job's
+# The project's Google sign-in client (ADR-31): from $TELEDASH_GOOGLE_CLIENT (the release job's GOOGLE_CLIENT
 # secret, the JSON text) or a local google-client.json. Never in git. Without it the package
 # still works; the phone page then offers only an owner's own client.
 if [ -n "${TELEDASH_GOOGLE_CLIENT:-}" ]; then printf '%s' "$TELEDASH_GOOGLE_CLIENT" > "$STAGE/google-client.json"

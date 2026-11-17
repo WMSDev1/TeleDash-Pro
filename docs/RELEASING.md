@@ -26,7 +26,7 @@ GitHub Pages site. A merge that keeps an already released version publishes noth
 Release packages carry one Google OAuth client, so users only sign in, with no Google Cloud setup of
 their own. The maintainer creates it once. It never goes into git: `scripts/build.sh` takes it
 from a local `google-client.json` (git-ignored) or, in the release job, from the repository
-secret `TELEDASH_GOOGLE_CLIENT`. The client secret does end up inside the public package; for an
+secret `GOOGLE_CLIENT`. The client secret does end up inside the public package; for an
 app installed on people's devices Google does not treat it as confidential, and it gives no
 access to anyone's calendar.
 
@@ -59,8 +59,11 @@ access to anyone's calendar.
 8. For release builds, store it as the repository secret (run by the maintainer):
 
    ```sh
-   gh secret set TELEDASH_GOOGLE_CLIENT < google-client.json
+   gh secret set GOOGLE_CLIENT < google-client.json
    ```
+
+   Or on the website: Settings → Secrets and variables → Actions → **New repository secret**,
+   name `GOOGLE_CLIENT`, value: the whole contents of `google-client.json`.
 
    The release job stops with an error if this secret is missing, rather than publishing a
    package without Google sign-in.
