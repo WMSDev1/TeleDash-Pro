@@ -1,17 +1,20 @@
 # Releasing
 
-Releases are driven by git tags. Pushing a tag `vX.Y.Z` makes CI build the package, publish a
-GitHub Release, and update the Homebrew Channel repository on the project's GitHub Pages site.
+Releases happen on merge. When a push to `main` (normally a merged pull request) carries a
+version in `app/appinfo.json` that has no GitHub Release yet, CI builds the package, creates the
+tag `vX.Y.Z` and a GitHub Release, and updates the Homebrew Channel repository on the project's
+GitHub Pages site. A merge that keeps an already released version publishes nothing.
 
 ## One-time setup for a repository
 
 - **GitHub Pages** must be turned on for the repository (Settings → Pages → Source:
   **GitHub Actions**, which is how `.github/workflows/release.yml` deploys the site).
-- **Let tags deploy to Pages.** Turning Pages on creates an environment called `github-pages`
-  that, by default, only accepts deployments from the default branch. Releases run from a tag,
-  so add one: Settings → Environments → `github-pages` → Deployment branches and tags → Add
-  rule → type **Tag**, pattern `v*`. Without it the Release is still created, but the Pages
-  deployment is refused and Homebrew Channel and automatic updates never see the new version.
+- **Let `main` deploy to Pages.** Turning Pages on creates an environment called
+  `github-pages` that accepts deployments from the default branch (`main`), which is where
+  releases run. If its deployment rules were changed (Settings → Environments → `github-pages`
+  → Deployment branches and tags), make sure `main` is allowed. Otherwise the Release is still
+  created, but the Pages deployment is refused and Homebrew Channel and automatic updates never
+  see the new version.
 - The release workflow fills `pagesBase` in `project.json` from the repository
   (`https://<owner>.github.io/<repo>`). The Google sign-in return address and the Homebrew
   Channel repository address both come from it, so a fork publishes under its own address.
@@ -68,20 +71,17 @@ short video of the sign-in, and Google's review.
 
 ## Making a release
 
-1. Make sure `main` is green: `bash scripts/check.sh` passes locally and in CI.
-2. Set the new version in `app/appinfo.json` (`"version": "X.Y.Z"`) and merge that to `main`.
-   Use a higher version than the last release: Homebrew Channel and the automatic updater only
-   offer a version that is newer than the one installed.
-3. Tag that commit with the same version, prefixed with `v`, and push the tag:
+1. In the pull request, raise the version in `app/appinfo.json` (`"version": "X.Y.Z"`; Z for
+   fixes, Y for new features). CI already insists on this when the package changes, and the
+   release job refuses a version that is not newer than the latest release: Homebrew Channel
+   and the automatic updater only offer a newer version.
+2. Merge the pull request. That is the release: no tag to push by hand.
+3. Watch **Actions → Release** for the run on the merge commit.
 
-   ```sh
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
+To run it again by hand (for example after adding a missing secret): **Actions → Release → Run
+workflow** on `main`. It only publishes if that version has no Release yet.
 
-   The tag **must** equal the version in `app/appinfo.json`. Do not push the tag until they match.
-
-## What CI does with the tag
+## What CI does on a release
 
 In outline (the workflow files in `.github/workflows/` are the source of truth):
 
@@ -89,7 +89,8 @@ In outline (the workflow files in `.github/workflows/` are the source of truth):
 2. Builds the package with `scripts/build.sh`, with `pagesBase` filled in.
 3. Writes the Homebrew Channel manifest `com.teledashpro.dashboard.manifest.json`
    (id, version, package address, size, and SHA-256 hash of the package).
-4. Creates a GitHub Release for the tag with the `.ipk` and the manifest attached.
+4. Creates the tag `vX.Y.Z` on the merged commit and a GitHub Release for it, with the `.ipk`
+   and the manifest attached.
 5. Publishes `site/` to GitHub Pages with:
    - `repo/`: the manifest and the repository index Homebrew Channel reads;
    - `oauth/index.html`: the Google sign-in return page.
@@ -113,8 +114,8 @@ After that:
 
 ## If a release is bad
 
-Make a new release with a higher version that fixes or reverts the problem. Do not re-use or
-move a tag: TVs compare version numbers, and a package with the same version will not be
+Merge a fix or revert with a higher version. Do not re-use or move a tag, or delete a Release
+to publish the same version again: TVs compare version numbers, and a package with the same version will not be
 offered again.
 
 ## Unconfirmed
