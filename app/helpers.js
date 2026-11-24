@@ -106,6 +106,7 @@ var Helpers = (function () {
   }
 
   var HDMI1 = { id: "com.webos.app.hdmi1", title: "HDMI 1", color: "#3d4450" };
+  var MUSIC = { id: "teledash.music", title: "Music", color: "#1c5a3a", music: true };
   var SETUP = { id: "teledash.setup", title: "Set up", color: "#2b3442", setup: true };
   var BRIEF = { id: "teledash.brief", title: "Morning brief", color: "#24456b", brief: true };
   var NIGHT = { id: "teledash.night", title: "Night", color: "#2a1a16", night: true };
@@ -114,16 +115,23 @@ var Helpers = (function () {
   // Tiles in order. apps null (automatic): the TV's own apps, then HDMI 1, Set up, Morning brief,
   // Night, All apps. apps a list (chosen on the setup page): that list in its order, HDMI 1 only if
   // it is listed, and always Set up, Morning brief and Night just before All apps (All apps added
-  // at the end if missing).
+  // at the end if missing). showMusic (settings.music.tile) adds the Music tile just before Set up.
   function fixedTile(f, o) {
     var t = { id: f.id, title: (o && o.title) || f.title, color: (o && o.color) || f.color };
     if (f.setup) t.setup = true;
     if (f.exit) t.exit = true;
     if (f.night) t.night = true;
     if (f.brief) t.brief = true;
+    if (f.music) t.music = true;
     return t;
   }
-  function tiles(configApps, tvList) {
+  function tiles(configApps, tvList, showMusic) {
+    var list = baseTiles(configApps, tvList);
+    if (!showMusic) return list;
+    for (var i = 0; i < list.length; i++) if (list[i].id === SETUP.id) { list.splice(i, 0, fixedTile(MUSIC)); break; }
+    return list;
+  }
+  function baseTiles(configApps, tvList) {
     var byId = {}, list = [];
     (tvList || []).forEach(function (a) { if (a && a.id) byId[a.id] = a; });
     if (!(configApps instanceof Array)) {
@@ -132,7 +140,7 @@ var Helpers = (function () {
     }
     var hasAll = false;
     configApps.forEach(function (a) {
-      if (!a || !a.id || a.id === SETUP.id || a.id === BRIEF.id || a.id === NIGHT.id) return;
+      if (!a || !a.id || a.id === SETUP.id || a.id === BRIEF.id || a.id === NIGHT.id || a.id === MUSIC.id) return;
       if (a.id === HDMI1.id) { list.push(fixedTile(HDMI1, a)); return; }
       if (a.id === ALL.id) { list.push(fixedTile(SETUP), fixedTile(BRIEF), fixedTile(NIGHT), fixedTile(ALL, a)); hasAll = true; return; }
       var t = tileFor(a.id, a.title, a.color, byId[a.id]);
@@ -144,7 +152,7 @@ var Helpers = (function () {
   }
   // Ids that keep their place when the tiles are re-sorted by use.
   function pinnedIds(configApps, pinned) {
-    var p = (pinned || []).concat([SETUP.id, BRIEF.id, NIGHT.id, ALL.id]);
+    var p = (pinned || []).concat([MUSIC.id, SETUP.id, BRIEF.id, NIGHT.id, ALL.id]);
     return configApps instanceof Array ? p : p.concat([HDMI1.id]);
   }
 
@@ -192,7 +200,7 @@ var Helpers = (function () {
   }
 
   return { merge: merge, inNight: inNight, nextNightEnd: nextNightEnd, parseIso: parseIso, iconUrl: iconUrl, textColor: textColor, googleEvents: googleEvents, fmt: fmt, tvApps: tvApps,
-    tiles: tiles, pinnedIds: pinnedIds, installAction: installAction, inMorning: inMorning, FIXED: FIXED,
+    tiles: tiles, pinnedIds: pinnedIds, installAction: installAction, inMorning: inMorning, FIXED: FIXED, MUSIC_ID: MUSIC.id,
     TV_DATA: TV_DATA, APP_ID: APP_ID };
 })();
 if (typeof module !== "undefined") module.exports = Helpers;

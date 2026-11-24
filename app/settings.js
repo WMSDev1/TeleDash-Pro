@@ -9,6 +9,9 @@
 //   Settings.serviceUp()                true once the service has answered (and still does)
 //   Settings.calendar(cb) / pair(cb) -> cb(object or null); feed(cb) -> cb(object or null, HTTP status);
 //   usage(cb) -> cb(text or null); night(on, cb) dims (on) or restores (off) the TV's picture
+//   music(cb), musicDo(body, cb), musicList(kind, {id, offset, q}, cb) -> cb(answer or null, HTTP status):
+//                                       the answer is passed on even for an error status, so the
+//                                       helper's plain-English { error } can be shown
 var CONFIG;
 var Settings = (function () {
   var BASE = "http://127.0.0.1:8770", KEY = "teledash.settings", POLL_MS = 30000;
@@ -64,6 +67,37 @@ var Settings = (function () {
     }, 20000, { on: !!on }); });
   }
 
+  // Music view calls. Unlike req, the parsed answer is handed over for error statuses too.
+  // Retries once with a fresh key if refused.
+  function call(method, path, body, cb, again) {
+    withKey(function () {
+      var done = false, x;
+      function fin(d, s) { if (!done) { done = true; cb(d, s || 0); } }
+      try {
+        x = new XMLHttpRequest();
+        x.onload = function () {
+          if (x.status === 403 && !again) { done = true; needKey = true; call(method, path, body, cb, true); return; }
+          var d = null; try { d = JSON.parse(x.responseText); } catch (e) {}
+          fin(d, x.status);
+        };
+        x.onerror = x.ontimeout = x.onabort = function () { fin(null, 0); };
+        x.open(method, BASE + path);
+        if (key) x.setRequestHeader("X-TeleDash-Local", key);
+        x.timeout = 15000;
+        if (body != null) { x.setRequestHeader("Content-Type", "application/json"); x.send(JSON.stringify(body)); }
+        else x.send();
+      } catch (e) { fin(null, 0); }
+    });
+  }
+  function listPath(kind, o) {
+    var p = "/api/local/music/list?kind=" + encodeURIComponent(kind);
+    o = o || {};
+    if (o.id) p += "&id=" + encodeURIComponent(o.id);
+    if (o.offset) p += "&offset=" + encodeURIComponent(o.offset);
+    if (o.q) p += "&q=" + encodeURIComponent(o.q);
+    return p;
+  }
+
   function setUp(v) {
     if (v === up) return;
     up = v;
@@ -95,6 +129,9 @@ var Settings = (function () {
     feed: function (cb) { req("GET", "/api/local/feed", function (d, t, s) { cb(d, s); }, 30000); },
     usage: function (cb) { req("GET", "/api/local/usage", function (d, t) { cb(t); }, 10000); },
     night: night,
+    music: function (cb) { call("GET", "/api/local/music", null, cb); },
+    musicDo: function (body, cb) { call("POST", "/api/local/music", body, cb); },
+    musicList: function (kind, o, cb) { call("GET", listPath(kind, o), null, cb); },
     pair: function (cb) { req("POST", "/api/local/pair", function (d) { cb(d && d.url ? d : null); }, 8000); },
     KEY: KEY
   };

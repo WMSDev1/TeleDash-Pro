@@ -32,6 +32,9 @@ Other webOS versions and models are **unknown**: they may work, partly work, or 
   right down, for sleeping with the TV on. The idle view switches to it by itself from 10 pm until
   the morning brief; start it any time with the **Night** tile or the remote's **red** button. A
   button press or the morning brief ends it, and your picture settings come back as they were.
+- **Music** (optional): Spotify full screen, with artwork, controls and your library, in a
+  retro desktop-player look or a plain one. Needs Spotify Premium and a free Spotify developer
+  app of your own. See [docs/MUSIC.md](docs/MUSIC.md).
 - **Home button** (optional): make the remote's Home button open TeleDash Pro instead of
   LG's home screen. Off by default. See [docs/HOME-BUTTON.md](docs/HOME-BUTTON.md).
 
@@ -90,7 +93,8 @@ Step by step, with every option explained: [docs/SETUP.md](docs/SETUP.md).
 - **Your location is rounded** to about 10 km (one decimal place) before it is saved.
 - **The TV talks directly to the services you turn on**: a weather service (Open-Meteo), the
   US National Weather Service for warnings, a public stock-quote service for the market
-  strip, Google or your iCal provider for your calendar, and the address of your data feed.
+  strip, Google or your iCal provider for your calendar, Spotify if you connect it, and the
+  address of your data feed.
   Each of them sees your TV's internet address when it is asked for data.
 - **App usage** (which app was in front, and when) is logged on the TV only, to order the
   tiles. It never leaves the TV.
@@ -126,6 +130,14 @@ curl -X POST -H "X-TeleDash-Local: $(cat .data/local.token)" http://127.0.0.1:87
 
 Open the printed address in a browser to use the setup page against your local copy.
 
+To preview the dashboard itself in a browser, serve `app/` (for example
+`python3 -m http.server 8791 --directory app`) and open `index.html?demo=1`. Add `&music=demo`
+for the Music view with made-up songs, and `&skin=modern` or `&skin=retro` to pick its look. To
+preview against the local helper instead, give the page the helper's key once, in the browser's
+console: `localStorage.setItem("teledash.devkey", JSON.stringify("<contents of .data/local.token>"))`.
+Sign-in needs a public return page; a local run can borrow a published one with
+`TELEDASH_PAGES_BASE=https://<owner>.github.io/<repo>`.
+
 To try a build on your own rooted TV over SSH:
 
 ```sh
@@ -142,6 +154,7 @@ How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). How releases work:
 |---|---|
 | [docs/SETUP.md](docs/SETUP.md) | Setting everything up from your phone |
 | [docs/GOOGLE-CALENDAR.md](docs/GOOGLE-CALENDAR.md) | Connecting Google Calendar, or an iCal address instead |
+| [docs/MUSIC.md](docs/MUSIC.md) | The Music view: connecting Spotify, the remote's buttons, fade and look |
 | [docs/DATA-FEED.md](docs/DATA-FEED.md) | The data feed: JSON and CSV formats, GitHub files, read-only keys |
 | [docs/HOME-BUTTON.md](docs/HOME-BUTTON.md) | Making Home open TeleDash Pro, and undoing it |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the parts fit together |

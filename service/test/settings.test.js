@@ -104,13 +104,14 @@ t.test("secrets: validated, stored privately, reported only as booleans", functi
 });
 
 t.test("music settings: defaults, partial updates and limits", function () {
-  assert.deepStrictEqual(settings.load().music, { tile: false, fadeSeconds: 8, fadeTo: 0 });
-  assert.deepStrictEqual(apply({ music: { fadeSeconds: 30 } }).music, { tile: false, fadeSeconds: 30, fadeTo: 0 });
-  assert.deepStrictEqual(apply({ music: { tile: true, fadeSeconds: 0, fadeTo: 100 } }).music, { tile: true, fadeSeconds: 0, fadeTo: 100 });
+  assert.deepStrictEqual(settings.load().music, { tile: false, fadeSeconds: 8, fadeTo: 0, skin: "retro" });
+  assert.deepStrictEqual(apply({ music: { fadeSeconds: 30 } }).music, { tile: false, fadeSeconds: 30, fadeTo: 0, skin: "retro" });
+  assert.deepStrictEqual(apply({ music: { tile: true, fadeSeconds: 0, fadeTo: 100, skin: "modern" } }).music, { tile: true, fadeSeconds: 0, fadeTo: 100, skin: "modern" });
   return Promise.all([
     t.rejects(function () { apply({ music: { fadeSeconds: 601 } }); }, /music.fadeSeconds must be a whole number from 0 to 600/),
     t.rejects(function () { apply({ music: { fadeTo: 101 } }); }, /music.fadeTo/),
     t.rejects(function () { apply({ music: { tile: "yes" } }); }, /music.tile must be true or false/),
+    t.rejects(function () { apply({ music: { skin: "neon" } }); }, /music.skin must be one of: retro, modern/),
     t.rejects(function () { apply({ music: { visualizer: "bars" } }); }, /Unknown setting: music.visualizer/)
   ]);
 });

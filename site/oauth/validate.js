@@ -1,5 +1,5 @@
-// Google sign-in return page logic (CONTRACT.md, "Google sign-in", step 3).
-// Google sends the phone here with ?code&state (or ?error). The state names the TV's setup
+// Sign-in return page logic (CONTRACT.md, "Google sign-in" step 3; Spotify sign-in uses it too).
+// Google or Spotify sends the phone here with ?code&state (or ?error). The state names the TV's setup
 // address; we only forward to it when it is plain http to a private IPv4 address and a port,
 // so this public page can never be used as an open redirect.
 // ES5 and dependency-free: it also runs under node for scripts/test-oauth.js.
@@ -80,15 +80,15 @@ var TeleDashOAuth = (function () {
 
     if (error) {
       var msg = error === "access_denied"
-        ? "Google sign-in was cancelled. Nothing was changed."
-        : "Google reported a problem with sign-in (" + error.slice(0, 60) + ").";
+        ? "Sign-in was cancelled. Nothing was changed."
+        : "The sign-in service reported a problem (" + error.slice(0, 60) + ").";
       return { action: "error", message: msg, setupUrl: origin ? origin + "/setup" : null };
     }
     if (!state || !getParam(search, "code")) {
-      return { action: "error", message: "This page is only used during Google sign-in from the TeleDash Pro setup page. Start again from there.", setupUrl: null };
+      return { action: "error", message: "This page is only used during sign-in from the TeleDash Pro setup page. Start again from there.", setupUrl: null };
     }
     if (!parsed) {
-      return { action: "error", message: "The sign-in link was damaged on the way back from Google. Start again from the setup page.", setupUrl: null };
+      return { action: "error", message: "The sign-in link was damaged on the way back. Start again from the setup page.", setupUrl: null };
     }
     if (!origin) {
       return { action: "error", message: "The sign-in did not point back to a TV on your home network, so this page will not continue. Start again from the setup page on your TV's network.", setupUrl: null };

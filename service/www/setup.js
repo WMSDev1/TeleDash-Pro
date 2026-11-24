@@ -97,6 +97,12 @@
     $("google-warning").hidden = !!st.googleSignedIn;
     if (!ST.google.builtIn) $("google-own").open = true;          // the only way to sign in
     $("google-cals").hidden = !st.googleSignedIn;
+    $("spotify-unavailable").hidden = ST.spotify.available;
+    $("spotify-steps").hidden = !ST.spotify.available;
+    $("spotify-redirect").textContent = ST.spotify.redirectUri || "";
+    $("spotify-state").textContent = st.spotifySignedIn ? "Signed in to Spotify." :
+      st.spotifyClient ? "Tap Sign in with Spotify." : "Add your Spotify client ID first.";
+    $("spotify-signin").disabled = !st.spotifyClient;
     $("token-state").textContent = st.feedToken ? "A token is saved." : "No token saved.";
     var u = ST.update;
     $("update-state").textContent = "This TV runs version " + u.current +
@@ -199,6 +205,63 @@
       say(section, done, true);
       return refreshStatus();
     }).catch(function (e) { say(section, e.message, false); });
+  }
+
+  // ---------------- music (Spotify) ----------------
+
+  function renderMusic() {
+    $("music-tile").checked = S.music.tile;
+    $("music-fade").value = S.music.fadeSeconds;
+    $("music-fadeto").value = S.music.fadeTo;
+    $("music-skin").value = S.music.skin;
+  }
+
+  function initMusic() {
+    renderMusic();
+    $("spotify-save").addEventListener("click", function () {
+      var id = $("spotify-id").value.trim();
+      if (!id) return say("music", "Paste the client ID first.", false);
+      say("music", "Saving…", true);
+      api("POST", "/api/secrets", { spotify: { clientId: id } }).then(function () {
+        $("spotify-id").value = "";
+        say("music", "Client ID saved. Now tap Sign in with Spotify.", true);
+        return refreshStatus();
+      }).catch(function (e) { say("music", e.message, false); });
+    });
+    $("spotify-signin").addEventListener("click", function () {
+      say("music", "Opening Spotify…", true);
+      api("POST", "/api/spotify/start", {}).then(function (r) { location.href = r.authUrl; })
+        .catch(function (e) { say("music", e.message, false); });
+    });
+    $("spotify-remove").addEventListener("click", function () {
+      if (!confirm("Remove this from the TV?")) return;
+      // Removing the secret also turns the Music tile off, so reload the settings too.
+      api("DELETE", "/api/secrets/spotify").then(function () {
+        return api("GET", "/api/settings");
+      }).then(function (s) {
+        S = s;
+        renderMusic();
+        say("music", "Spotify was disconnected and its client ID removed.", true);
+        return refreshStatus();
+      }).catch(function (e) { say("music", e.message, false); });
+    });
+    $("music-save").addEventListener("click", function () {
+      // Whole numbers only; an empty box is an error, not 0.
+      var fv = $("music-fade").value.trim(), tv = $("music-fadeto").value.trim();
+      var fade = /^\d+$/.test(fv) ? parseInt(fv, 10) : -1, to = /^\d+$/.test(tv) ? parseInt(tv, 10) : -1;
+      if (!(fade >= 0 && fade <= 600)) return say("music", "The fade time must be a whole number of seconds from 0 to 600.", false);
+      if (!(to >= 0 && to <= 100)) return say("music", "The faded brightness must be a whole number from 0 to 100.", false);
+      saveSettings("music", { music: { tile: $("music-tile").checked, fadeSeconds: fade, fadeTo: to, skin: $("music-skin").value } }).then(renderMusic, function () {});
+    });
+
+    // Back from Spotify's sign-in page (sign-in also turned the tile on).
+    var m = /[?&]spotify=(ok|error)/.exec(location.search);
+    if (m) {
+      history.replaceState(null, "", "/setup");
+      if (m[1] === "ok") say("music", "Signed in to Spotify. The Music tile is on the TV.", true);
+      else say("music", ST.spotify.lastError || "Spotify sign-in did not complete. Try again.", false);
+      $("music").scrollIntoView();
+    }
   }
 
   // ---------------- weather ----------------
@@ -485,7 +548,7 @@
     S = r[0]; ST = r[1];
     $("main").hidden = false;
     renderStatus();
-    initCalendar(); initWeather(); initTiles(); initFeed(); initMorning(); initCountdowns(); initRest();
+    initCalendar(); initMusic(); initWeather(); initTiles(); initFeed(); initMorning(); initCountdowns(); initRest();
   }).catch(function (e) {
     if (!$("banner").hidden) return;
     $("banner").textContent = e.message;

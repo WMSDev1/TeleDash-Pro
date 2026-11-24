@@ -31,6 +31,7 @@ paths under `/home/root`) degrades gracefully when absent.
 | App install dir on TV | `/media/developer/apps/usr/palm/applications/com.teledashpro.dashboard/` (written `$APPDIR` below) |
 | Service port | `8770` (`project.json` → `port`), listening on all interfaces |
 | Data dir on TV | `/home/root/teledash/` (mode 700). Override with env `TELEDASH_DATA` (dev runs use `./.data/`) |
+| Dev-run switches | env `TELEDASH_PAGES_BASE` overrides `pagesBase` (a run from the repository can borrow a published return page for sign-in). In a browser with no TV service bridge the app reads the helper's key from `localStorage` key `teledash.devkey` instead of the root shell; on a TV that path is never taken |
 | Settings file | `$DATA/settings.json` (non-secret, mode 600) |
 | Secrets file | `$DATA/secrets.json` (mode 600). Never sent to any client, never logged |
 | Local key | `$DATA/local.token` (mode 600; 32+ random URL-safe chars, created by the service at start and kept across restarts). The app reads it as root through Homebrew Channel and sends it on every `/api/local/*` call |
@@ -86,7 +87,7 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   "pinned": ["com.webos.app.hdmi1", "com.webos.app.home"],
   "home": { "opensDashboard": false, "delaySeconds": 1 },
   "updates": { "auto": false },
-  "music": { "tile": false, "fadeSeconds": 8, "fadeTo": 0 }
+  "music": { "tile": false, "fadeSeconds": 8, "fadeTo": 0, "skin": "retro" }
 }
 ```
 - `rev` increases by one on every save; the app re-applies settings when it changes.
@@ -112,7 +113,9 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   before `Set up`). Spotify sign-in sets it to `true`; removing the Spotify secret sets it to `false`.
   `music.fadeSeconds`: 0–600, seconds after the last button press before the Music view's artwork
   and controls fade (0 = never). `music.fadeTo`: 0–100, the percent of full opacity they rest at
-  once faded (0 = gone, leaving only the visualizer).
+  once faded (0 = gone, leaving only the visualizer). `music.skin`: `"retro"` (a late-90s desktop
+  player: bevelled silver windows, a black LCD with a segment clock) or `"modern"` (plain text and
+  round buttons in the dashboard's own style).
 
 Secrets (`secrets.json`), write-only from the setup page:
 `{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "spotify": { "clientId", "refreshToken", "accessToken", "expiry" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client

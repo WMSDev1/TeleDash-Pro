@@ -43,6 +43,14 @@ assert.deepStrictEqual(H.tiles([{ id: "b.app", title: "B" }], tv).map(x => x.id)
 assert.strictEqual(H.tiles([{ id: "teledash.brief", title: "X" }, { id: "b.app" }], tv).filter(x => x.id === "teledash.brief").length, 1);
 assert.ok(H.pinnedIds(null, []).indexOf("teledash.brief") >= 0);
 assert.deepStrictEqual(H.tiles(null, null).map(x => x.id), H.FIXED);
+// The Music tile (settings.music.tile) sits just before Set up, in both modes, exactly once.
+t = H.tiles(null, tv, true);
+assert.deepStrictEqual(t.map(x => x.id), ["a.app", "b.app", "com.webos.app.hdmi1", "teledash.music", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
+assert.strictEqual(t[3].music, true); assert.strictEqual(t[3].title, "Music");
+assert.deepStrictEqual(H.tiles([{ id: "teledash.music", title: "X" }, { id: "b.app", title: "B" }], tv, true).map(x => x.id),
+  ["b.app", "teledash.music", "teledash.setup", "teledash.brief", "teledash.night", "com.webos.app.home"]);
+assert.strictEqual(H.tiles([{ id: "teledash.music", title: "X" }], tv, false).filter(x => x.id === "teledash.music").length, 0);
+assert.ok(H.pinnedIds(null, []).indexOf(H.MUSIC_ID) >= 0);
 // Icons as webOS 6 reports them: relative to folderPath (seen on an LG C1).
 assert.strictEqual(H.iconUrl({ id: "com.peacock.tv", largeIcon: "images/largeIcon.png" }), "http://127.0.0.1:8770/icons/com.peacock.tv");
 assert.strictEqual(H.iconUrl({ id: "x" }), "");

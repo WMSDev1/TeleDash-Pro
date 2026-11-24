@@ -61,6 +61,37 @@
   <p class="msg" id="calendar-msg" role="status"></p>
 </section>
 
+<section id="music">
+  <h2>Music (Spotify)</h2>
+  <p id="spotify-unavailable" class="help" hidden>Spotify sign-in is not available in this build of TeleDash Pro. Install a release build to use the Music view.</p>
+  <div id="spotify-steps">
+    <p class="state" id="spotify-state"></p>
+    <p class="help">Spotify Premium is required. Spotify limits each developer app to five users, so TeleDash Pro cannot ship one for everybody: you make your own, once.</p>
+    <ol class="help steps">
+      <li>Open <b>developer.spotify.com/dashboard</b> and sign in.</li>
+      <li>Tap <b>Create app</b>. Any name and description will do.</li>
+      <li>Set the <b>Redirect URI</b> to exactly this:<p class="code" id="spotify-redirect"></p></li>
+      <li>Tick <b>Web API</b>, then save.</li>
+      <li>Open the app's settings and copy its <b>Client ID</b> into the box below.</li>
+    </ol>
+    <label class="field">Client ID<input id="spotify-id" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="32 letters and digits"></label>
+    <div class="row">
+      <button id="spotify-save">Save client ID</button>
+      <button id="spotify-signin" class="primary">Sign in with Spotify</button>
+    </div>
+    <label class="check"><input type="checkbox" id="music-tile"> Show the Music tile on the TV</label>
+    <label class="field">Fade the artwork and controls after … seconds (0 = never)<input id="music-fade" type="number" min="0" max="600" inputmode="numeric"></label>
+    <label class="field">Brightness once faded, 0–100% (0 = hidden)<input id="music-fadeto" type="number" min="0" max="100" inputmode="numeric"></label>
+    <label class="field">Look<select id="music-skin">
+      <option value="retro">Retro: a 1990s desktop music player</option>
+      <option value="modern">Modern: plain, like the dashboard</option>
+    </select></label>
+    <button id="music-save">Save music settings</button>
+    <button id="spotify-remove" class="danger">Disconnect Spotify</button>
+  </div>
+  <p class="msg" id="music-msg" role="status"></p>
+</section>
+
 <section id="weather">
   <h2>Weather</h2>
   <p class="state" id="weather-state"></p>
