@@ -85,7 +85,8 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   "tileOrder": "daily",
   "pinned": ["com.webos.app.hdmi1", "com.webos.app.home"],
   "home": { "opensDashboard": false, "delaySeconds": 1 },
-  "updates": { "auto": false }
+  "updates": { "auto": false },
+  "music": { "tile": false, "fadeSeconds": 8, "fadeTo": 0 }
 }
 ```
 - `rev` increases by one on every save; the app re-applies settings when it changes.
@@ -107,9 +108,14 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   they end (07:00 if that day has none). `night: null` turns automatic night mode off.
 - `countdowns.dates`: `[{ "title", "date": "MM-DD" | "YYYY-MM-DD" }]`.
 - `home.delaySeconds`: 0–30. `updates.auto`: default **false**.
+- `music.tile`: show the `Music` tile (internal id `teledash.music`, always pinned, placed just
+  before `Set up`). Spotify sign-in sets it to `true`; removing the Spotify secret sets it to `false`.
+  `music.fadeSeconds`: 0–600, seconds after the last button press before the Music view's artwork
+  and controls fade (0 = never). `music.fadeTo`: 0–100, the percent of full opacity they rest at
+  once faded (0 = gone, leaving only the visualizer).
 
 Secrets (`secrets.json`), write-only from the setup page:
-`{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client
+`{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "spotify": { "clientId", "refreshToken", "accessToken", "expiry" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client
 
 ## Service HTTP API (port 8770)
 
@@ -135,6 +141,9 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `GET /api/local/usage` | `text/plain` usage log (last 6000 lines) |
 | `POST /api/local/night` | body `{ "on": bool }` → `{ "night": bool, "changed": bool }`. On: saves the TV's picture settings (`backlight`, `contrast`, `brightness`, `energySaving`) to `$DATA/picture-day.json` unless already saved (never the night values themselves), then sets 0 / 70 / 50 / `"max"`. Off: restores the saved values and deletes the file; nothing saved → no change. Calls run in order. Anything but a boolean `on` → 400 |
 | `POST /api/local/update` | starts installing the latest release now (same steps as automatic update) → `{ "started": true }` or `{ "error" }` |
+| `GET /api/local/music` | what Spotify is playing (see "Spotify"): `{ "connected": false }` when not signed in, else `{ "connected": true, "active", "playing", "progressMs", "durationMs", "at", "shuffle", "repeat", "device", "track" }`. Cached ≤1 s |
+| `POST /api/local/music` | body `{ "do": "<command>", … }` (see "Spotify") → `{ "ok": true }`. Unknown command or bad field → 400; not signed in or no active device → 409 |
+| `GET /api/local/music/list?kind=<kind>&id=<id>&offset=<n>&q=<text>` | `{ "items": [ { "kind", "uri", "id", "title", "subtitle", "art", "active"? } ], "next": <offset> or null }` (see "Spotify"). Unknown kind → 400 |
 
 ### Setup endpoints — from a phone on the same network
 | Method & path | Behaviour |
@@ -143,13 +152,14 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `GET /setup` | the setup page (`service/www/setup.html`); without a valid session → the expired page |
 | `GET /api/settings` | settings (session required) |
 | `PUT /api/settings` | partial update, validated field by field against the schema; unknown keys rejected; returns the saved settings |
-| `POST /api/secrets` | `{ "icalUrl"? , "google": { "clientId", "clientSecret" }?, "feedToken"? }` → `{ "ok": true }`; values never echoed back. `icalUrl` must be `https://` or `webcal://` (stored as `https://`) |
-| `DELETE /api/secrets/<icalUrl|google|feedToken>` | removes it; removing the secret of the current `calendar.source` also sets it to `"none"` |
+| `POST /api/secrets` | `{ "icalUrl"? , "google": { "clientId", "clientSecret" }?, "spotify": { "clientId" }?, "feedToken"? }` → `{ "ok": true }`; values never echoed back. `icalUrl` must be `https://` or `webcal://` (stored as `https://`). The Spotify client ID is 32 hex characters; saving a different one forgets the earlier Spotify sign-in |
+| `DELETE /api/secrets/<icalUrl|google|spotify|feedToken>` | removes it; removing the secret of the current `calendar.source` also sets it to `"none"`; removing `spotify` also sets `music.tile` to `false` |
+| `POST /api/spotify/start` | `{ "authUrl" }` (see "Spotify"); error if `pagesBase` is empty or no Spotify client ID is saved |
 | `GET /api/apps` | installed apps `[ { "id", "title" } ]` (via `luna-send ... listApps`; `[]` off-TV) |
 | `POST /api/google/start` | `{ "authUrl" }` (see below); error if `pagesBase` is empty or there is no client (built-in or own) |
 | `GET /api/google/calendars` | `[ { "id", "summary", "primary" } ]` |
-| `GET /oauth/return?code&state` | completes Google sign-in (no session cookie needed: protected by the single-use `state` nonce + PKCE), then redirects to `/setup?google=ok` or `/setup?google=error` |
-| `GET /api/status` | `{ "version", "connected": {...}, "stored": { "icalUrl", "googleClient", "googleSignedIn", "feedToken" } (booleans), "update": {..., "installing", "error"}, "google": { "available", "builtIn", "redirectUri", "lastError" } }` (session required). `builtIn`: the package carries a Google client, so sign-in needs no keys |
+| `GET /oauth/return?code&state` | completes a sign-in (no session cookie needed: protected by the single-use `state` nonce + PKCE). The nonce says whose it is: a Spotify sign-in redirects to `/setup?spotify=ok` or `/setup?spotify=error`, anything else is treated as Google's and redirects to `/setup?google=ok` or `/setup?google=error` |
+| `GET /api/status` | `{ "version", "connected": {...}, "stored": { "icalUrl", "googleClient", "googleSignedIn", "spotifyClient", "spotifySignedIn", "feedToken" } (booleans), "update": {..., "installing", "error"}, "google": { "available", "builtIn", "redirectUri", "lastError" }, "spotify": { "available", "redirectUri", "lastError" } }` (session required). `builtIn`: the package carries a Google client, so sign-in needs no keys. `connected` (here and in `/api/local/state`) gains `"spotify": bool` (signed in) |
 | `POST /api/update` | same as `POST /api/local/update`, for the setup page's "Update now" (the phone cannot reach the loopback-only endpoint) |
 
 Every state-changing setup request requires the session cookie **and** an `X-TeleDash: 1` header
@@ -174,6 +184,84 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
    (with client secret + verifier + same redirect URI), stores the refresh token in secrets, and
    sets `calendar.source = "google"`.
 5. Calendar reads use `https://www.googleapis.com/calendar/v3/calendars/<id>/events?singleEvents=true&orderBy=startTime&timeMin&timeMax`.
+
+## Spotify (the Music view)
+
+Spotify Premium is required (Spotify's rule for playback control and for development-mode apps).
+No client is built into the package: Spotify caps a development-mode app at five users, so each
+owner creates their own app at developer.spotify.com and pastes its client ID on the setup page.
+
+**Sign-in** (authorization code + PKCE; there is no client secret):
+
+1. `POST /api/spotify/start` creates `state` exactly as Google sign-in does
+   (`base64url(JSON {"t": "http://<lan-ip>:8770", "n": "<nonce>"})`), a PKCE verifier/challenge
+   (S256), remembers nonce → verifier for 10 minutes, and returns
+   `https://accounts.spotify.com/authorize?client_id=…&response_type=code&redirect_uri=<pagesBase>/oauth/&scope=<scopes>&state=…&code_challenge=…&code_challenge_method=S256`.
+   Scopes, space-separated, only what is used: `user-read-playback-state user-modify-playback-state
+   user-read-currently-playing user-library-read user-library-modify playlist-read-private
+   playlist-read-collaborative user-read-recently-played`.
+2. Spotify returns the phone to the same static `oauth/` page as Google (the owner registers
+   `<pagesBase>/oauth/` as the app's redirect URI; Spotify requires HTTPS there). The page forwards
+   to `http://<TV>:8770/oauth/return` unchanged.
+3. The service sees the nonce is a Spotify one, exchanges the code at
+   `https://accounts.spotify.com/api/token` (form body: `grant_type=authorization_code`, `code`,
+   `redirect_uri`, `client_id`, `code_verifier`), stores the tokens, and sets `music.tile = true`.
+4. Refresh: same address, `grant_type=refresh_token`, `refresh_token`, `client_id`. Spotify may
+   answer with a new refresh token, which replaces the old one. `invalid_grant` forgets the tokens
+   (the setup page then shows "not signed in").
+
+**Web API** (`https://api.spotify.com/v1`, paths as of Spotify's February 2026 changes):
+
+`GET /api/local/music` reads `GET /me/player?additional_types=track,episode`:
+
+```json
+{ "connected": true, "active": true, "playing": true, "progressMs": 61000, "durationMs": 215000,
+  "at": 1767366000000, "shuffle": false, "repeat": "off",
+  "device": { "id": "…", "name": "Living room", "type": "Speaker", "volume": 40 },
+  "track": { "uri": "spotify:track:…", "title": "…", "artist": "A, B", "album": "…", "art": "https://…", "liked": true } }
+```
+- `at`: Unix milliseconds when Spotify answered, so the app can move the progress bar between reads.
+- Nothing active (HTTP 204 from Spotify): `active` and `playing` false, `device` and `track` null.
+- `repeat`: `"off" | "context" | "track"`. `device.volume`: 0–100, or `null` when the device does
+  not allow volume control. `art`: the largest image, `""` when there is none.
+- `liked`: from `GET /me/library/contains?uris=<track uri>`, looked up once per track; `null` when
+  unknown. Episodes: `title` is the episode, `artist` the show, `album` `""`.
+
+`POST /api/local/music` commands (`do`):
+
+| `do` | Other fields | Spotify call |
+|---|---|---|
+| `play` | none (resume), or `context` (a playlist/album URI) with optional `offsetUri` (the track to start at), or `uris` (1–50 track URIs) with optional `offsetUri`; optional `deviceId` | `PUT /me/player/play` |
+| `pause` | | `PUT /me/player/pause` |
+| `next`, `previous` | | `POST /me/player/next`, `/previous` |
+| `seek` | `ms` (0 or more, whole number) | `PUT /me/player/seek?position_ms=` |
+| `shuffle` | `on` (boolean) | `PUT /me/player/shuffle?state=` |
+| `repeat` | `mode`: `off`, `context`, `track` | `PUT /me/player/repeat?state=` |
+| `volume` | `percent` (0–100) | `PUT /me/player/volume?volume_percent=` |
+| `transfer` | `deviceId`, optional `play` (boolean) | `PUT /me/player` |
+| `queue` | `uri` (track or episode) | `POST /me/player/queue?uri=` |
+| `like`, `unlike` | `uri` (track) | `PUT` / `DELETE /me/library?uris=` |
+
+Every URI is checked against `spotify:(track|episode|album|playlist|artist|show):<22 letters or digits>`
+before it is sent. Spotify answering 404 with reason `NO_ACTIVE_DEVICE` becomes 409 "No Spotify
+device is active…"; 403 `PREMIUM_REQUIRED` becomes 403 "Spotify Premium is needed…"; 429 becomes 429.
+
+`GET /api/local/music/list` kinds (page size 50; `search` 10, Spotify's limit):
+
+| `kind` | Needs | Items | Spotify call |
+|---|---|---|---|
+| `playlists` | | `playlist` | `GET /me/playlists` |
+| `albums` | | `album` | `GET /me/albums` |
+| `liked` | | `track` | `GET /me/tracks` |
+| `recent` | | `track` (no paging) | `GET /me/player/recently-played` |
+| `playlist` | `id` | `track` | `GET /playlists/{id}/items` (each entry's `item`, else its older `track`) |
+| `album` | `id` | `track` | `GET /albums/{id}/tracks` (art and album title from `GET /albums/{id}`) |
+| `queue` | | `track` (no paging) | `GET /me/player/queue` |
+| `devices` | | `device` (`active` set) | `GET /me/player/devices` |
+| `search` | `q` (1–100 characters) | `track`, `album`, `playlist` | `GET /search?type=track,album,playlist` |
+
+Item: `{ "kind", "uri", "id", "title", "subtitle", "art" }`: `subtitle` is the artists (track,
+album), the owner and track count (playlist), or the device type; `uri` is `""` for a device.
 
 ## Data feed
 
@@ -214,6 +302,16 @@ Every state-changing setup request requires the session cookie **and** an `X-Tel
   `{"brief": true}` show the brief at any
   hour (ending night mode). It stays for 15 minutes or until a key press, then normal standby.
   Launch parameter `{"idle": true}` opens straight into the ordinary idle view.
+- Music view: the `Music` tile, the yellow key (405) or launch parameter `{"music": true}` show
+  Spotify full screen (body class `music`, `app/music.js`): the visualizer canvas behind, and over
+  it the artwork, title, progress bar and a row of controls. The app reads `GET /api/local/music`
+  every 2 s while the view is up and moves the progress bar itself in between. Keys: ←/→ move
+  along the controls, OK presses one, ↑ opens the library (playlists, albums, liked songs,
+  recently played, queue, devices), Back closes the library and then the view (the music keeps
+  playing); the remote's Play (415), Pause (19), Stop (413), Fast-forward (417, next) and Rewind
+  (412, previous) always act. After `music.fadeSeconds` without a button press the artwork and
+  controls fade to `music.fadeTo` percent and drift (nothing sits still on an OLED); any button
+  brings them back. The screen never goes idle while music is playing in this view.
 - QR: `app/qr.js` exposes `QR.matrix(text)` → array of rows of booleans (byte mode, error
   correction M, smallest version that fits, versions 1–10 at least) and `QR.svg(text, sizePx)` →
   SVG markup string. UMD-style: `var QR = …; if (typeof module !== "undefined") module.exports = QR;`

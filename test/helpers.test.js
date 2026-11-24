@@ -8,7 +8,7 @@ assert.deepStrictEqual(m.market.indexes, []); assert.strictEqual(m.market.show, 
 assert.strictEqual(H.merge(D, { weather: null }).weather, null);
 assert.notStrictEqual(H.merge(D, {}).alerts, D.alerts);  // no shared objects
 // config matches schema keys
-assert.deepStrictEqual(Object.keys(D), ["rev","apps","columns","idleSeconds","weather","alerts","market","feed","calendar","morning","night","countdowns","tileOrder","pinned","home","updates"]);
+assert.deepStrictEqual(Object.keys(D), ["rev","apps","columns","idleSeconds","weather","alerts","market","feed","calendar","morning","night","countdowns","tileOrder","pinned","home","updates","music"]);
 // parseIso
 assert.strictEqual(H.parseIso("2026-11-15").getTime(), new Date(2026, 10, 15).getTime());
 assert.strictEqual(H.parseIso("2026-11-15T09:30:00Z").getTime(), Date.UTC(2026, 10, 15, 9, 30));

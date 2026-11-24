@@ -1,11 +1,13 @@
 "use strict";
-// secrets.json (mode 600): the iCal link, Google keys and tokens, and the feed token.
+// secrets.json (mode 600): the iCal link, Google keys and tokens, the Spotify client and tokens,
+// and the feed token.
 // Write-only from the setup page: nothing in here is ever returned to a client or logged.
 var URL = require("url").URL;
 var store = require("./store");
 var util = require("./util");
 
 var FILE = "secrets.json";
+var NAMES = ["icalUrl", "google", "spotify", "feedToken"];
 
 function load() {
   var s = store.readJson(FILE, null);
@@ -33,12 +35,12 @@ function icalUrl(v) {
   return u.href;
 }
 
-// patch: { icalUrl?, google?: { clientId, clientSecret }, feedToken? }
+// patch: { icalUrl?, google?: { clientId, clientSecret }, spotify?: { clientId }, feedToken? }
 // feedOrigin: feed.originOf(the current feed address); a new feed token is tied to it.
 function save(patch, feedOrigin) {
   if (!util.isObject(patch)) bad("Send the secrets as an object.");
   Object.keys(patch).forEach(function (k) {
-    if (["icalUrl", "google", "feedToken"].indexOf(k) < 0) bad("Unknown secret: " + k);
+    if (NAMES.indexOf(k) < 0) bad("Unknown secret: " + k);
   });
   var s = load();
   if (patch.icalUrl !== undefined) s.icalUrl = icalUrl(patch.icalUrl);
@@ -53,6 +55,19 @@ function save(patch, feedOrigin) {
     if (!/\.apps\.googleusercontent\.com$/.test(id)) bad("The Google client ID should end in .apps.googleusercontent.com");
     // New keys mean any earlier sign-in belongs to a different client: start over.
     s.google = { clientId: id, clientSecret: secret };
+  }
+  if (patch.spotify !== undefined) {
+    var sp = patch.spotify;
+    if (!util.isObject(sp)) bad("Spotify needs a client ID.");
+    Object.keys(sp).forEach(function (k) {
+      if (k !== "clientId") bad("Unknown Spotify setting: " + k);
+    });
+    // Sign-in uses PKCE, so there is no client secret to keep: the ID alone identifies the
+    // owner's Spotify developer app.
+    var sid = cleanText(sp.clientId, "The Spotify client ID", 64).toLowerCase();
+    if (!/^[0-9a-f]{32}$/.test(sid)) bad("The Spotify client ID is 32 letters and digits (0-9, a-f). Copy it from your app's page on developer.spotify.com.");
+    // A different client means the earlier sign-in belongs to another app: start over.
+    if (!s.spotify || s.spotify.clientId !== sid) s.spotify = { clientId: sid };
   }
   if (patch.feedToken !== undefined) {
     s.feedToken = cleanText(patch.feedToken, "The feed token", 500);
@@ -73,16 +88,19 @@ function feedUrlChanged(origin) {
   return dropped;
 }
 
-// Merges token fields into the Google entry (used by the sign-in code, never by a client).
-function saveGoogle(fields) {
+// Merges token fields into one sign-in's entry (used by the sign-in code, never by a client).
+// A field set to undefined is removed.
+function mergeInto(name, fields) {
   var s = load();
-  s.google = Object.assign({}, s.google || {}, fields);
-  Object.keys(s.google).forEach(function (k) { if (s.google[k] === undefined) delete s.google[k]; });
+  s[name] = Object.assign({}, s[name] || {}, fields);
+  Object.keys(s[name]).forEach(function (k) { if (s[name][k] === undefined) delete s[name][k]; });
   store.writeJson(FILE, s);
 }
+function saveGoogle(fields) { mergeInto("google", fields); }
+function saveSpotify(fields) { mergeInto("spotify", fields); }
 
 function remove(name) {
-  if (["icalUrl", "google", "feedToken"].indexOf(name) < 0) throw util.httpError(404, "There is no secret called " + name + ".");
+  if (NAMES.indexOf(name) < 0) throw util.httpError(404, "There is no secret called " + name + ".");
   var s = load();
   delete s[name];
   if (name === "feedToken") delete s.feedTokenOrigin;
@@ -91,13 +109,18 @@ function remove(name) {
 
 // What is stored, as booleans only.
 function stored() {
-  var s = load(), g = s.google || {};
+  var s = load(), g = s.google || {}, sp = s.spotify || {};
   return {
     icalUrl: !!s.icalUrl,
     googleClient: !!(g.clientId && g.clientSecret),
     googleSignedIn: !!g.refreshToken,
+    spotifyClient: !!sp.clientId,
+    spotifySignedIn: !!sp.refreshToken,
     feedToken: !!s.feedToken
   };
 }
 
-module.exports = { load: load, save: save, feedUrlChanged: feedUrlChanged, saveGoogle: saveGoogle, remove: remove, stored: stored };
+module.exports = {
+  load: load, save: save, feedUrlChanged: feedUrlChanged, saveGoogle: saveGoogle, saveSpotify: saveSpotify,
+  remove: remove, stored: stored
+};

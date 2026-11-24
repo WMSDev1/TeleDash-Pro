@@ -10,6 +10,10 @@ var settings = require("../lib/settings");
 var config = require("../lib/config");
 var google = require("../lib/google");
 
+// A developer's checkout may hold a real google-client.json (never in git): these tests start
+// without a built-in client and add their own where one is needed.
+config.googleClient = null;
+
 var PAGES = "https://example.github.io/teledash-pro";
 var ORIGIN = "http://192.168.1.50:8770";
 var calls = [];

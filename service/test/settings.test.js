@@ -95,11 +95,47 @@ t.test("secrets: validated, stored privately, reported only as booleans", functi
     secrets.save({ icalUrl: "webcal://calendar.example.com/example-secret-path/basic.ics", feedToken: "tok_example" });
     var raw = secrets.load();
     assert.strictEqual(raw.icalUrl, "https://calendar.example.com/example-secret-path/basic.ics");
-    assert.deepStrictEqual(secrets.stored(), { icalUrl: true, googleClient: false, googleSignedIn: false, feedToken: true });
+    assert.deepStrictEqual(secrets.stored(), { icalUrl: true, googleClient: false, googleSignedIn: false, spotifyClient: false, spotifySignedIn: false, feedToken: true });
     assert.strictEqual(fs.statSync(path.join(process.env.TELEDASH_DATA, "secrets.json")).mode & 511, 384);
     secrets.remove("feedToken");
     assert.strictEqual(secrets.stored().feedToken, false);
     return t.rejects(function () { secrets.remove("settings"); }, /no secret/, 404);
+  });
+});
+
+t.test("music settings: defaults, partial updates and limits", function () {
+  assert.deepStrictEqual(settings.load().music, { tile: false, fadeSeconds: 8, fadeTo: 0 });
+  assert.deepStrictEqual(apply({ music: { fadeSeconds: 30 } }).music, { tile: false, fadeSeconds: 30, fadeTo: 0 });
+  assert.deepStrictEqual(apply({ music: { tile: true, fadeSeconds: 0, fadeTo: 100 } }).music, { tile: true, fadeSeconds: 0, fadeTo: 100 });
+  return Promise.all([
+    t.rejects(function () { apply({ music: { fadeSeconds: 601 } }); }, /music.fadeSeconds must be a whole number from 0 to 600/),
+    t.rejects(function () { apply({ music: { fadeTo: 101 } }); }, /music.fadeTo/),
+    t.rejects(function () { apply({ music: { tile: "yes" } }); }, /music.tile must be true or false/),
+    t.rejects(function () { apply({ music: { visualizer: "bars" } }); }, /Unknown setting: music.visualizer/)
+  ]);
+});
+
+t.test("spotify secret: a client ID only, and a new one forgets the old sign-in", function () {
+  var ID = "0123456789abcdef0123456789abcdef", OTHER = "fedcba9876543210fedcba9876543210";
+  return Promise.all([
+    t.rejects(function () { secrets.save({ spotify: { clientId: "not-an-id" } }); }, /32 letters and digits/),
+    t.rejects(function () { secrets.save({ spotify: { clientId: ID, clientSecret: "x" } }); }, /Unknown Spotify setting/),
+    t.rejects(function () { secrets.save({ spotify: "x" }); }, /Spotify needs a client ID/)
+  ]).then(function () {
+    secrets.save({ spotify: { clientId: ID.toUpperCase() } });
+    assert.strictEqual(secrets.load().spotify.clientId, ID, "stored in lower case");
+    assert.strictEqual(secrets.stored().spotifyClient, true);
+    assert.strictEqual(secrets.stored().spotifySignedIn, false);
+    secrets.saveSpotify({ refreshToken: "rt", accessToken: "at", expiry: 1 });
+    assert.strictEqual(secrets.stored().spotifySignedIn, true);
+    secrets.save({ spotify: { clientId: ID } });
+    assert.strictEqual(secrets.stored().spotifySignedIn, true, "the same client keeps its sign-in");
+    secrets.saveSpotify({ accessToken: undefined });
+    assert.ok(!("accessToken" in secrets.load().spotify), "undefined removes a field");
+    secrets.save({ spotify: { clientId: OTHER } });
+    assert.deepStrictEqual(secrets.load().spotify, { clientId: OTHER });
+    secrets.remove("spotify");
+    assert.strictEqual(secrets.stored().spotifyClient, false);
   });
 });
 

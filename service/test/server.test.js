@@ -265,7 +265,7 @@ t.test("secrets are write-only and never echoed", function () {
     rs.forEach(function (r) {
       assert.ok(r.text.indexOf(SECRET) < 0 && r.text.indexOf(TOKEN) < 0, "secret leaked in " + r.text.slice(0, 80));
     });
-    assert.deepStrictEqual(rs[1].json.stored, { icalUrl: true, googleClient: false, googleSignedIn: false, feedToken: true });
+    assert.deepStrictEqual(rs[1].json.stored, { icalUrl: true, googleClient: false, googleSignedIn: false, spotifyClient: false, spotifySignedIn: false, feedToken: true });
     assert.strictEqual(rs[2].json.connected.ical, true);
     assert.ok(proc.output.indexOf(SECRET) < 0 && proc.output.indexOf(TOKEN) < 0, "secret in the log");
     return req("POST", "/api/secrets", Object.assign({ body: { icalUrl: "http://calendar.example.com/x.ics" } }, o));
