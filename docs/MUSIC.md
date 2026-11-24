@@ -52,7 +52,7 @@ Open it with the **Music** tile or the remote's **yellow** button.
 
 The controls, left to right: shuffle, previous, back 15 seconds, play or pause, forward 15
 seconds, next, repeat (off, all, one), like, volume down and up (only when the playing device
-lets Spotify set its volume), and the library.
+lets Spotify set its volume), the visualizer, and the library.
 
 In the library, **OK** opens a playlist or album, or plays a song. Choosing a song inside a
 playlist or album plays the rest of it afterwards. **Devices** lists your Spotify devices;
@@ -60,6 +60,16 @@ choosing one moves the music there.
 
 "Nothing is playing" means Spotify has no active device. Start Spotify on a phone, speaker or
 computer, or pick one under **Devices**.
+
+## Visualizers
+
+Behind the player there is a visualizer. The button with four bars, next to the library button,
+steps through them: spectrum bars, oscilloscope, radial, particles, plasma, and off. They take
+their colours from the album artwork (the retro bars keep their green, yellow and red).
+
+**On the TV they do not follow the music yet.** They move to a made-up beat while Spotify is
+playing, and the player says so when you switch. Getting the real sound to them on a TV is still
+being worked on.
 
 ## Fade, and the look
 

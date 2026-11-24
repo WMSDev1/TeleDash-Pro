@@ -177,6 +177,7 @@
   .mbtn.on { color: #4cd07d; }
   .mbtn.fill svg path { fill: currentColor; }
   .mbtn.hide { display: none; }
+  #music #mctl .mbtn:last-child { margin-right: 0; }
   .mbtn[data-one="1"]::after { content: "1"; font-size: 22px; margin-left: 2px; }
   #mstat { margin-top: 12px; min-height: 34px; }
   #mdev { display: block; font-size: 26px; color: #8b95a3; }
@@ -239,7 +240,7 @@
     border: 3px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 2px 2px 0 #000; }
   #music.retro #mfill { background: repeating-linear-gradient(90deg, #000080 0, #000080 18px, transparent 18px, transparent 22px); }
   #music.retro #mctl { margin-top: 10px; height: 82px; }
-  #music.retro .mbtn { min-width: 98px; height: 74px; margin: 4px 8px 4px 0; border-radius: 0; background: #c0c0c0; color: #000;
+  #music.retro .mbtn { min-width: 90px; height: 74px; margin: 4px 8px 4px 0; border-radius: 0; background: #c0c0c0; color: #000;
     font-size: 26px; font-weight: 700; border: 3px solid; border-color: #fff #000 #000 #fff;
     box-shadow: inset -3px -3px 0 #808080, inset 3px 3px 0 #dfdfdf; }
   #music.retro .mbtn.on { background: #d4d4d4; color: #000080; border-color: #000 #fff #fff #000; box-shadow: inset 3px 3px 0 #808080; }
@@ -318,6 +319,7 @@
   <script src="usage.js"></script>
   <script src="qr.js"></script>
   <script src="bg.js"></script>
+  <script src="viz.js"></script>
   <script src="music.js"></script>
   <script src="app.js"></script>
 </body>

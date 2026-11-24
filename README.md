@@ -132,7 +132,9 @@ Open the printed address in a browser to use the setup page against your local c
 
 To preview the dashboard itself in a browser, serve `app/` (for example
 `python3 -m http.server 8791 --directory app`) and open `index.html?demo=1`. Add `&music=demo`
-for the Music view with made-up songs, and `&skin=modern` or `&skin=retro` to pick its look. To
+for the Music view with made-up songs, and `&skin=modern` or `&skin=retro` to pick its look. In
+the Music view, press C to let the visualizers follow real sound (choose a Chrome tab that is
+playing music and tick "Also share tab audio"), or M for the microphone. To
 preview against the local helper instead, give the page the helper's key once, in the browser's
 console: `localStorage.setItem("teledash.devkey", JSON.stringify("<contents of .data/local.token>"))`.
 Sign-in needs a public return page; a local run can borrow a published one with

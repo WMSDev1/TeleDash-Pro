@@ -61,7 +61,8 @@ var Music = (function () {
     shuffle: ["M3 7h3l9 10h5M3 17h3l3-3.3M12.5 9.8L15 7h5M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5", 1],
     repeat: ["M4 11V9a2 2 0 0 1 2-2h13M16.5 4.5L19 7l-2.5 2.5M20 13v2a2 2 0 0 1-2 2H5M7.5 19.5L5 17l2.5-2.5", 1],
     heart: ["M12 20l-7.5-7.6a4.6 4.6 0 0 1 6.5-6.5l1 1 1-1a4.6 4.6 0 0 1 6.5 6.5z", 1],
-    library: ["M4 6h16M4 12h16M4 18h16", 1], close: ["M6 6l12 12M18 6L6 18", 1]
+    library: ["M4 6h16M4 12h16M4 18h16", 1], close: ["M6 6l12 12M18 6L6 18", 1],
+    viz: ["M5 20v-8M10 20V5M15 20v-11M20 20v-6", 1]
   };
   function icon(name) {
     var i = ICONS[name];
@@ -72,7 +73,8 @@ var Music = (function () {
     { id: "shuffle", icon: "shuffle" }, { id: "previous", icon: "prev" }, { id: "back", text: "-15" },
     { id: "toggle", icon: "play" }, { id: "fwd", text: "+15" }, { id: "next", icon: "next" },
     { id: "repeat", icon: "repeat" }, { id: "like", icon: "heart" },
-    { id: "voldown", text: "Vol -" }, { id: "volup", text: "Vol +" }, { id: "library", icon: "library" }
+    { id: "voldown", text: "Vol -" }, { id: "volup", text: "Vol +" }, { id: "viz", icon: "viz" },
+    { id: "library", icon: "library" }
   ];
   var MENU = [
     { kind: "menu", title: "Playlists", list: "playlists" }, { kind: "menu", title: "Albums", list: "albums" },
@@ -149,6 +151,7 @@ var Music = (function () {
   var pollTimer = null, tickTimer = null, fadeTimer = null, driftTimer = null, msgTimer = null;
   var faded = false, lastTouch = 0, focus = 3, btns = [], lib = null, note = "";
   var E = {};
+  var V = typeof Viz !== "undefined" ? Viz : null;               // the visualizers (viz.js)
 
   function $(id) { return document.getElementById(id); }
   function el(cls, text) { var e = document.createElement("div"); e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -220,6 +223,7 @@ var Music = (function () {
       if (a) E.martimg.src = a; else E.martimg.removeAttribute("src");
       E.martimg.style.visibility = a ? "visible" : "hidden";
     }
+    if (V) { V.setArt(a); V.setSkin(retro); V.setPlaying(!!(st && st.playing)); }
     var vol = st && st.device && typeof st.device.volume === "number" ? "volume " + st.device.volume + "%" : "";
     E.mdev.textContent = !(st && st.device) ? "" : retro ? vol || st.device.type || "" :   // the title bar names the device
       "Playing on " + st.device.name + (vol ? " · " + vol : "");
@@ -334,8 +338,16 @@ var Music = (function () {
   }
   function freeze(s) { s.progressMs = position(); s.at = Date.now(); }
 
+  // What the visualizer is moving to, said plainly: real sound, or a made-up beat.
+  function vizNote() {
+    if (!V) return "";
+    var n = "Visualizer: " + V.name();
+    if (V.name() === "Off" || V.live()) return n;
+    return n + (V.computer ? " (made-up beat: press C to share a tab's sound, M for the microphone)" : " (not following the music yet)");
+  }
   function act(id) {
     var s = st || {};
+    if (id === "viz") { if (V) { V.next(); say(vizNote()); } return; }
     if (id === "library") { openLib(); return; }
     if (s.connected === false || !st) return;
     if (id === "toggle") send(s.playing ? { "do": "pause" } : { "do": "play" }, function (x) { freeze(x); x.playing = !x.playing; });
@@ -500,6 +512,12 @@ var Music = (function () {
   }
 
   function key(k) {
+    // Previewing on a computer: C shares a tab's (or the screen's) sound with the visualizer, M the microphone.
+    if (V && V.computer && (k === 67 || k === 77)) {
+      V.capture(k === 77 ? "mic" : "tab", function (e) { say(e || "The visualizer is following this computer's sound."); });
+      touch();
+      return;
+    }
     var media = MEDIA.indexOf(k) >= 0, was = touch();
     if (media) { mediaKey(k); return; }
     if (was && revealOnly(k)) return;
@@ -512,6 +530,7 @@ var Music = (function () {
     document.body.classList.add("music");
     setFocus(ctl("toggle"));
     render(); touch(); poll();
+    if (V) V.start($("mviz"));
     tickTimer = setInterval(tick, 500);
     driftTimer = setInterval(drift, DRIFT_MS);
   }
@@ -521,6 +540,7 @@ var Music = (function () {
     [pollTimer, fadeTimer, msgTimer].forEach(clearTimeout);
     clearInterval(tickTimer); clearInterval(driftTimer);
     if (lib) closeLib();
+    if (V) V.stop();
     document.body.classList.remove("music");
     if (hooks.onClose) hooks.onClose();
   }

@@ -116,6 +116,14 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   once faded (0 = gone, leaving only the visualizer). `music.skin`: `"retro"` (a late-90s desktop
   player: bevelled silver windows, a black LCD with a segment clock) or `"modern"` (plain text and
   round buttons in the dashboard's own style).
+- Visualizers (`app/viz.js`) draw behind the Music view's artwork and controls: spectrum bars,
+  oscilloscope, radial, particles, plasma, or off. The visualizer button in the control row steps
+  through them; the choice is kept on the TV in `localStorage` key `teledash.viz` (it is not a
+  setting). Each one draws from a frame of sound: `bands`, 64 numbers from 0 to 1 covering 40 Hz to
+  16 kHz in equal musical steps (bass first), and `wave`, 256 numbers from -1 to 1. A frame comes
+  from `Viz.feed({ bands, wave })`; with none in the last 0.6 s the visualizers move to a made-up
+  beat while Spotify plays and say so. What feeds real sound on a TV is not decided yet. In a
+  browser on a computer, C shares a tab's or the screen's sound and M the microphone.
 
 Secrets (`secrets.json`), write-only from the setup page:
 `{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "spotify": { "clientId", "refreshToken", "accessToken", "expiry" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client

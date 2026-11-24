@@ -827,4 +827,15 @@
   helperCheck();
   if (/[?&]setup=demo/.test(location.search)) openSetup();
   if (Music.demo) openMusic();
+  // Previewing on a computer (no TV service bridge): shrink the 1920x1080 page to fit the window.
+  if (!window.WebOSServiceBridge && !window.PalmServiceBridge) {
+    var fit = function () {
+      var k = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      document.documentElement.style.background = "#000";
+      document.body.style.transformOrigin = "0 0";
+      document.body.style.transform = k < 1 ? "scale(" + k + ")" : "";
+    };
+    window.addEventListener("resize", fit);
+    fit();
+  }
 })();
