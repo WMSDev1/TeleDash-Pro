@@ -57,6 +57,9 @@ Open it with the **Music** tile or the remote's **yellow** button.
 | Back | Close the library, then leave the Music view (the music keeps playing) |
 | Play, Pause, Stop | Play or pause |
 | Fast-forward, Rewind | Next and previous song |
+| Red | Next visualizer (the player stays hidden if it was hidden) |
+| Green | Next look: retro, modern, slim |
+| Blue | Open Options |
 
 The controls, left to right: shuffle, previous, back 15 seconds, play or pause, forward 15
 seconds, next, repeat (off, all, one), like, volume down and up (only when the playing device
@@ -89,8 +92,20 @@ TV as a device:
 ## Visualizers
 
 Behind the player there is a visualizer. The button with four bars, next to the library button,
-steps through them: spectrum bars, oscilloscope, radial, particles, plasma, and off. They take
-their colours from the album artwork (the retro bars keep their green, yellow and red).
+and the remote's **red** button, step through them:
+
+- **Spectrum bars**: one bar per pitch, bass on the left.
+- **Oscilloscope**: the sound wave itself, with sparks.
+- **Radial**: the bars bent into a circle.
+- **Particles**: a fountain that follows the loudness.
+- **Plasma**: slow coloured clouds.
+- **Waterfall**: the last few seconds of the spectrum scrolling up the screen, bass in the middle.
+- **Tunnel**: a ring of the newest sound in the middle, with everything before it flying outwards.
+- **Ripples**: rings that leave the middle on each beat.
+- **Meters**: two needles, one for low notes and one for high.
+- **Off**.
+
+They take their colours from the album artwork (the retro bars keep their green, yellow and red).
 
 **They move with the music when the TV is the one playing.** The helper measures the sound on its
 way to the TV's speakers (the TV's own mix, not a microphone) thirty times a second, while the
@@ -102,8 +117,9 @@ move to a made-up beat instead, and the player says so when you switch.
 ## Fade, and the look
 
 After a few seconds without a button press, the artwork and controls fade away, and any button
-brings them back. With the remote, press **Up** for the library and choose **Options**; each
-press of **OK** steps an option to its next value. The setup page on your phone has the same
+brings them back. With the remote, press **Blue** (or **Up** for the library, then **Options**);
+each press of **OK** steps an option to its next value. **Green** changes the look directly.
+For a player that is always on screen, choose the *slim* look and set the hiding time to *Never*. The setup page on your phone has the same
 settings. You can set:
 
 - **how long** before they fade (0 = never);

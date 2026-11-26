@@ -68,5 +68,12 @@ assert.ok(/Press OK to play on this TV/.test(M._idleHint("tv-1", "")));
 assert.ok(/^Start Spotify on a phone or speaker/.test(M._idleHint("", "")));
 assert.ok(/^Sign in again\. Start Spotify on a phone/.test(M._idleHint("", "Sign in again.")));
 
+// The colour buttons are shortcuts; yellow is kept free for video mode.
+assert.strictEqual(M._colourKey(403), "viz");
+assert.strictEqual(M._colourKey(404), "look");
+assert.strictEqual(M._colourKey(406), "options");
+assert.strictEqual(M._colourKey(405), "");
+assert.strictEqual(M._colourKey(M.K.OK), "");
+
 assert.strictEqual(typeof M._revealOnly(M.K.OK), "boolean");
 console.log("music checks passed");

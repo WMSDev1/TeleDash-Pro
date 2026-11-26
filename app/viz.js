@@ -16,7 +16,8 @@ var Viz = (function () {
   // Movement: bars jump up at once and sink slowly; a peak marker hangs, then falls.
   var ATTACK = 28, FALL = 1.1, FALL_REL = 2.2, PEAK_HOLD = 0.45, PEAK_FALL = 0.9;
   var KINDS = [["bars", "Spectrum bars"], ["scope", "Oscilloscope"], ["radial", "Radial"],
-    ["particles", "Particles"], ["plasma", "Plasma"], ["off", "Off"]];
+    ["particles", "Particles"], ["plasma", "Plasma"], ["waterfall", "Waterfall"], ["tunnel", "Tunnel"],
+    ["ripples", "Ripples"], ["meters", "Meters"], ["off", "Off"]];
   var OCTAVES = Math.log(F_MAX / F_MIN) / Math.LN2;
 
   // ---- pure helpers (also used by test/viz.test.js) ----
@@ -113,6 +114,24 @@ var Viz = (function () {
   function rgb(c, a) {
     var s = Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]);
     return a == null ? "rgb(" + s + ")" : "rgba(" + s + "," + a + ")";
+  }
+  // The colour of a loudness (0 to 1) on a palette of three: black, then each colour in turn.
+  function heat(v, p, out) {
+    var k = clamp01(v) * 3, a = k < 1 ? [0, 0, 0] : k < 2 ? p[0] : p[1], b = k < 1 ? p[0] : k < 2 ? p[1] : p[2], f = k < 1 ? k : k < 2 ? k - 1 : Math.min(1, k - 2);
+    out[0] = a[0] + (b[0] - a[0]) * f; out[1] = a[1] + (b[1] - a[1]) * f; out[2] = a[2] + (b[2] - a[2]) * f;
+    return out;
+  }
+  // A meter needle one moment later: a spring pulls it towards the level and a damper lets it
+  // overshoot a little, as a real needle does. n: { p: position 0 to 1, v: speed }.
+  function swing(n, target, dt) {
+    for (var left = dt; left > 0; left -= 0.008) {
+      var h = Math.min(left, 0.008);
+      n.v += ((target - n.p) * 140 - n.v * 15) * h;
+      n.p += n.v * h;
+      if (n.p < -0.04) { n.p = -0.04; n.v = 0; }               // the end stops
+      if (n.p > 1.06) { n.p = 1.06; n.v = 0; }
+    }
+    return n;
   }
   // A made-up beat for when no real sound is available: a kick, a bass line, drifting mids, hats.
   function synth(out, wave, t, on) {
@@ -412,7 +431,147 @@ var Viz = (function () {
     cx.imageSmoothingEnabled = true;
     cx.drawImage(pl.cv, 0, 0, W, H);
   }
-  var DRAW = { bars: bars, scope: scope, radial: radial, particles: particles, plasma: plasma, off: function () {} };
+  function sheet(w, h) { var c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+
+  // Waterfall: the spectrum's last few seconds, newest at the bottom, bass in the middle. Kept as
+  // a small picture (one pixel per band and per moment) and stretched over the screen.
+  var wf = null;
+  function waterfall(dt) {
+    var w = BANDS * 2, h = low ? 60 : 120, p = pal(), c = [0, 0, 0], i, n;
+    if (!wf || wf.h !== h) {
+      wf = { h: h, cv: sheet(w, h), acc: 0, quiet: h };
+      wf.cx = wf.cv.getContext("2d"); wf.row = wf.cx.createImageData(w, 1);
+      wf.cx.fillStyle = "#000"; wf.cx.fillRect(0, 0, w, h);
+    }
+    wf.acc = Math.min(4, wf.acc + dt * (low ? 30 : 45));            // rows a second
+    for (n = 0; wf.acc >= 1; wf.acc -= 1, n++) {
+      wf.quiet = frame.level < 0.003 ? wf.quiet + 1 : 0;
+      wf.cx.globalCompositeOperation = "copy";
+      wf.cx.drawImage(wf.cv, 0, -1);                               // everything moves up one row
+      wf.cx.globalCompositeOperation = "source-over";
+      var d = wf.row.data;
+      for (i = 0; i < w; i++) {
+        var lv = frame.bands[i < BANDS ? BANDS - 1 - i : i - BANDS];
+        heat(lv * lv * 1.25, p, c);                                // squared: quiet stays dark, so loud stands out
+        d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+      }
+      wf.cx.putImageData(wf.row, 0, h - 1);
+    }
+    if (wf.quiet >= h) { clear(); return; }                        // silence all the way up: true black
+    cx.globalAlpha = 1; cx.imageSmoothingEnabled = true;
+    cx.drawImage(wf.cv, 0, 0, W, H);
+  }
+
+  // Tunnel: each frame is the one before it, a little larger, turned and dimmer, with the newest
+  // sound drawn as a ring in the middle; so the past flies outwards. Drawn at half size (a quarter
+  // on a slow screen) on two sheets that swap places.
+  var tn = null;
+  function tunnel(dt, t) {
+    var s = low ? 4 : 2, w = W / s, h = H / s, f = dt * 60, i;
+    if (!tn || tn.w !== w) {
+      tn = { w: w, a: sheet(w, h), b: sheet(w, h), quiet: 9 };
+      tn.ax = tn.a.getContext("2d"); tn.bx = tn.b.getContext("2d");
+      tn.ax.fillStyle = "#000"; tn.ax.fillRect(0, 0, w, h);
+    }
+    tn.quiet = frame.level < 0.003 ? tn.quiet + dt : 0;
+    if (tn.quiet > 2.5) { clear(); return; }                       // the trails have faded: true black
+    var g = tn.bx, zoom = Math.pow(1.016 + frame.bass * 0.03 + frame.beat * 0.018, f);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+    g.fillStyle = "#000"; g.fillRect(0, 0, w, h);
+    g.globalAlpha = Math.pow(0.93, f);
+    g.translate(w / 2, h / 2); g.rotate((0.003 + frame.level * 0.014) * f * (Math.sin(t * 0.05) >= 0 ? 1 : -1)); g.scale(zoom, zoom); g.translate(-w / 2, -h / 2);
+    g.drawImage(tn.a, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+    if (frame.level >= 0.003) {
+      var r0 = h * (0.15 + frame.bass * 0.05), amp = h * 0.13, turn = t * 0.3;
+      g.beginPath();
+      for (i = 0; i < WAVE; i += 2) {
+        var a = i / WAVE * 6.2832 + turn, r = r0 + frame.wave[i] * amp, x = w / 2 + Math.cos(a) * r, y = h / 2 + Math.sin(a) * r;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.closePath();
+      g.lineJoin = "round"; g.lineWidth = (7 + frame.beat * 9) / s;
+      g.strokeStyle = ramp[Math.floor(t * 14) % BANDS]; g.stroke();
+    }
+    cx.globalAlpha = 1; cx.imageSmoothingEnabled = true;
+    cx.drawImage(tn.b, 0, 0, W, H);
+    var keep = tn.a; tn.a = tn.b; tn.b = keep; keep = tn.ax; tn.ax = tn.bx; tn.bx = keep;
+  }
+
+  // Ripples: a ring leaves the middle on every beat (and quieter ones in between), keeping the
+  // shape of the spectrum at the moment it left, bass at the top.
+  var rings = [], ringWait = 0, RING = null;
+  function ripples(dt, t) {
+    clear();
+    var X = W / 2, Y = H * 0.48, N = BANDS * 2, i, j, r;
+    if (!RING) { RING = []; for (i = 0; i < N; i++) { var a0 = (i + 0.5) / N * 6.2832 - Math.PI / 2; RING.push([Math.cos(a0), Math.sin(a0)]); } }
+    ringWait -= dt;
+    if (frame.level >= 0.003 && (frame.hit || ringWait <= 0) && rings.length < (low ? 10 : 22)) {
+      rings.push({ r: 46 + frame.bass * 44, v: 240 + frame.level * 420 + (frame.hit ? 170 : 0), life: 1, w: frame.hit ? 8 : 3,
+        a: frame.hit ? 1 : 0.5, c: Math.floor(t * 9) % BANDS, s: new Float32Array(frame.bands) });
+      ringWait = 0.24;
+    }
+    if (!rings.length) return;
+    cx.lineJoin = "round";
+    for (i = rings.length - 1; i >= 0; i--) {
+      r = rings[i];
+      r.r += r.v * dt; r.life -= dt * 0.42;
+      if (r.life <= 0 || r.r > 1300) { rings[i] = rings[rings.length - 1]; rings.pop(); continue; }
+      cx.globalAlpha = r.a * r.life; cx.strokeStyle = ramp[r.c]; cx.lineWidth = r.w * (0.4 + r.life * 0.6);
+      cx.beginPath();
+      for (j = 0; j < N; j++) {
+        var rr = r.r * (1 + r.s[j < BANDS ? j : N - 1 - j] * 0.24 * r.life), x = X + RING[j][0] * rr, y = Y + RING[j][1] * rr;
+        if (j) cx.lineTo(x, y); else cx.moveTo(x, y);
+      }
+      cx.closePath(); cx.stroke();
+    }
+    cx.globalAlpha = 0.25 + frame.beat * 0.6; cx.fillStyle = rgb(pal()[0]);
+    cx.beginPath(); cx.arc(X, Y, 16 + frame.bass * 44 + frame.beat * 14, 0, 6.2832); cx.fill();
+    cx.globalAlpha = 1;
+  }
+
+  // Meters: two needles, one for the low half of the spectrum and one for the high half (the sound
+  // arrives as one channel, so there is no left and right to show). They wander a little, so the
+  // dials do not sit in one place on an OLED.
+  var needles = [{ p: 0, v: 0 }, { p: 0, v: 0 }], lamp = 0;
+  function meters(dt, t) {
+    clear();
+    var lo = 0, hi = 0, i, m, c = pal(), half = BANDS / 2;
+    for (i = 0; i < half; i++) { lo += frame.bands[i]; hi += frame.bands[half + i]; }
+    swing(needles[0], clamp01(lo / half * 1.3), dt); swing(needles[1], clamp01(hi / half * 1.3), dt);
+    lamp = frame.hit ? 1 : lamp * Math.exp(-dt * 7);
+    if (frame.level < 0.003 && needles[0].p < 0.01 && needles[1].p < 0.01) return;   // at rest in silence: true black
+    var R = 420, SPAN = 0.84, ox = Math.sin(t * 0.07) * 46, oy = Math.cos(t * 0.05) * 26;
+    cx.lineCap = "round"; cx.textAlign = "center"; cx.font = "600 30px sans-serif";
+    var X = 0, Y = 0, k;
+    function at(pos, rad) { var a = -Math.PI / 2 + (pos * 2 - 1) * SPAN; return [X + Math.cos(a) * rad, Y + Math.sin(a) * rad]; }
+    for (m = 0; m < 2; m++) {
+      X = W / 2 + (m ? 1 : -1) * 470 + ox; Y = H * 0.7 + oy;
+      cx.globalAlpha = 0.5; cx.lineWidth = 4; cx.strokeStyle = rgb(c[0]);
+      cx.beginPath(); cx.arc(X, Y, R, -Math.PI / 2 - SPAN, -Math.PI / 2 + SPAN * 0.5); cx.stroke();
+      cx.strokeStyle = rgb(c[2]);                                   // the loud end of the scale
+      cx.beginPath(); cx.arc(X, Y, R, -Math.PI / 2 + SPAN * 0.5, -Math.PI / 2 + SPAN); cx.stroke();
+      for (k = 0; k <= 12; k++) {
+        var p1 = at(k / 12, R - (k % 3 ? 16 : 34)), p2 = at(k / 12, R);
+        cx.globalAlpha = k % 3 ? 0.4 : 0.8; cx.lineWidth = k % 3 ? 3 : 5; cx.strokeStyle = rgb(k >= 9 ? c[2] : c[0]);
+        cx.beginPath(); cx.moveTo(p1[0], p1[1]); cx.lineTo(p2[0], p2[1]); cx.stroke();
+      }
+      var tip = at(needles[m].p, R - 46), heel = at(needles[m].p, 30);
+      cx.strokeStyle = rgb(c[1]);
+      cx.globalAlpha = 0.18; cx.lineWidth = 18; cx.beginPath(); cx.moveTo(heel[0], heel[1]); cx.lineTo(tip[0], tip[1]); cx.stroke();
+      cx.globalAlpha = 1; cx.lineWidth = 5; cx.strokeStyle = rgb(mix(c[1], [255, 255, 255], 0.5));
+      cx.beginPath(); cx.moveTo(heel[0], heel[1]); cx.lineTo(tip[0], tip[1]); cx.stroke();
+      cx.globalAlpha = 0.6; cx.fillStyle = rgb(c[0]);
+      cx.fillText(m ? "HIGH" : "LOW", X, Y + 64);
+      cx.globalAlpha = 0.2 + lamp * 0.8; cx.fillStyle = rgb(c[2]);     // the pivot is a lamp that blinks on a beat
+      cx.beginPath(); cx.arc(X, Y, 15, 0, 6.2832); cx.fill();
+    }
+    cx.globalAlpha = 1;
+  }
+
+  var DRAW = { bars: bars, scope: scope, radial: radial, particles: particles, plasma: plasma,
+    waterfall: waterfall, tunnel: tunnel, ripples: ripples, meters: meters, off: function () {} };
+  function forget() { parts = []; sparks = []; rings = []; wf = null; tn = null; }   // what one visualizer left behind
 
   function loop(now) {
     if (!running) return;
@@ -429,7 +588,7 @@ var Viz = (function () {
     colours();
     advance(dt, now / 1000);
     var k = KINDS[kind][0];
-    if (k !== drawn) { clear(); parts = []; sparks = []; drawn = k; }
+    if (k !== drawn) { clear(); forget(); drawn = k; }
     DRAW[k](dt, now / 1000);
   }
   function start(canvas) {
@@ -443,7 +602,7 @@ var Viz = (function () {
   function stop() {
     running = false;
     if (cx) clear();
-    parts = [];
+    forget();
   }
   function next() {
     kind = (kind + 1) % KINDS.length;
@@ -487,7 +646,8 @@ var Viz = (function () {
     stats: function () { return { fps: Math.round(1 / pace), low: low, kind: KINDS[kind][0], live: frame.live, capturing: !!cap, palette: artPal ? "artwork" : "default" }; },
     computer: computer, BANDS: BANDS, WAVE: WAVE, F_MIN: F_MIN, F_MAX: F_MAX, FFT: FFT,
     _bandEdges: bandEdges, _bandBins: bandBins, _bandLevels: bandLevels, _shape: shape, _smooth: smooth,
-    _pickPalette: pickPalette, _synth: synth, _readLine: readLine
+    _pickPalette: pickPalette, _synth: synth, _readLine: readLine, _heat: heat, _swing: swing,
+    KINDS: KINDS.map(function (k) { return k[0]; })
   };
 })();
 if (typeof module !== "undefined") module.exports = Viz;

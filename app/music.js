@@ -6,13 +6,14 @@
 //   Music.open() / close()    show or leave the view (the music itself keeps playing)
 //   Music.isOpen()            the view is on screen
 //   Music.playing()           Spotify is playing: the screen must not go idle
-//   Music.key(keyCode)        a remote button, while the view is open
+//   Music.key(keyCode)        a remote button, while the view is open. The colour buttons are
+//                             shortcuts: red the next visualizer, green the next look, blue Options
 // ?music=demo on a computer previews the view with made-up songs and no helper.
 var Music = (function () {
   var POLL_MS = 2000, AFTER_CMD_MS = 600, LIB_IDLE_MS = 60000, DRIFT_MS = 60000;
   var ROW_H = 96, ROWS = 9, SEEK_MS = 15000, VOL_STEP = 5, PAGE = 50;
   var K = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, ESC: 27, BKSP: 8,
-    PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412, TOGGLE: 10252 };
+    PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412, TOGGLE: 10252, RED: 403, GREEN: 404, BLUE: 406 };
   var MEDIA = [K.PLAY, K.PAUSE, K.STOP, K.FF, K.RW, K.TOGGLE];
   var demo = typeof location !== "undefined" && /[?&]music=demo/.test(location.search);
 
@@ -56,6 +57,8 @@ var Music = (function () {
     if (body && body["do"] === "play" && !body.deviceId && tv && !(state && state.active)) body.deviceId = tv;
     return body;
   }
+  // What a colour button does in the Music view (yellow is kept for video mode).
+  function colourKey(k) { return k === K.RED ? "viz" : k === K.GREEN ? "look" : k === K.BLUE ? "options" : ""; }
   // What to say under "Nothing is playing". why: the reason this TV cannot play, when there is one.
   function idleHint(tv, why) {
     if (tv) return "Press OK to play on this TV, or Up for the library.";
@@ -184,7 +187,7 @@ var Music = (function () {
   // ---- state ----
   var hooks = {}, shown = false, st = null, err = "", seq = 0, fails = 0;
   var pollTimer = null, tickTimer = null, fadeTimer = null, driftTimer = null, msgTimer = null;
-  var faded = false, lastTouch = 0, focus = 3, btns = [], lib = null, note = "";
+  var faded = false, lastTouch = 0, focus = 3, btns = [], lib = null, note = "", toastTimer = null;
   var E = {};
   var V = typeof Viz !== "undefined" ? Viz : null;               // the visualizers (viz.js)
   var P = typeof Player !== "undefined" ? Player : null;         // this TV as a Spotify device (player.js)
@@ -213,7 +216,7 @@ var Music = (function () {
   // ---- drawing ----
   function build() {
     ["music", "mover", "martimg", "mtitle", "martist", "malbum", "mfill", "mpos", "mdur", "mctl", "mdev", "mmsg",
-      "mlibtitle", "mlist", "mlibfoot", "mwtitle", "mclose", "mclock", "fshuffle", "frepeat", "flike"].forEach(function (id) { E[id] = $(id); });
+      "mlibtitle", "mlist", "mlibfoot", "mwtitle", "mclose", "mclock", "fshuffle", "frepeat", "flike", "mtoast"].forEach(function (id) { E[id] = $(id); });
     E.mclose.innerHTML = icon("close");
     E.mclose.addEventListener("click", close);
     E.mctl.innerHTML = "";
@@ -339,6 +342,13 @@ var Music = (function () {
         x += 12 + G;
       }
     }
+  }
+  // A note in the corner for a few seconds: it does not bring the artwork and controls back.
+  function toast(text) {
+    clearTimeout(toastTimer);
+    E.mtoast.textContent = text || "";
+    E.mtoast.className = text ? "on" : "";
+    if (text) toastTimer = setTimeout(function () { E.mtoast.className = ""; }, 2600);
   }
   function say(text) {
     note = text || "";
@@ -471,8 +481,21 @@ var Music = (function () {
         if (!d || d.error || d[o.key] === undefined) say((d && d.error) || "That could not be saved, so it lasts only until the TV restarts.");
       });
     }
-    view().items = optRows();
+    if (lib && view().kind === "options") view().items = optRows();
     render(); renderLib(); touch();
+  }
+  function openOptions() {
+    if (lib && view().kind === "options") return;
+    if (!lib) openLib();
+    push({ list: "options" });
+  }
+  // The colour buttons. Red changes the visualizer and leaves a faded player faded: that is when
+  // the visualizer is being watched.
+  function shortcut(what) {
+    if (what === "viz") { if (V) { V.next(); toast(vizNote()); if (lib && view().kind === "options") { view().items = optRows(); renderLib(); } } return; }
+    if (what === "look") { setOption(OPTS[0]); toast("Look: " + optLabel("skin", skin())); return; }
+    touch();
+    openOptions();
   }
   function push(row) {
     if (row.list === "options") {
@@ -603,6 +626,7 @@ var Music = (function () {
       touch();
       return;
     }
+    if (colourKey(k)) { shortcut(colourKey(k)); return; }
     var media = MEDIA.indexOf(k) >= 0, was = touch();
     if (media) { mediaKey(k); return; }
     if (was && revealOnly(k)) return;
@@ -624,7 +648,8 @@ var Music = (function () {
   function close() {
     if (!shown) return;
     shown = false; seq++;
-    [pollTimer, fadeTimer, msgTimer].forEach(clearTimeout);
+    [pollTimer, fadeTimer, msgTimer, toastTimer].forEach(clearTimeout);
+    E.mtoast.className = "";
     clearInterval(tickTimer); clearInterval(driftTimer);
     if (lib) closeLib();
     deaf();
@@ -639,7 +664,7 @@ var Music = (function () {
     isOpen: function () { return shown; },
     playing: function () { return !!(shown && st && st.playing); },
     demo: demo,
-    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, _nextChoice: nextChoice, _optLabel: optLabel, _aim: aim, _idleHint: idleHint, K: K
+    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, _nextChoice: nextChoice, _optLabel: optLabel, _aim: aim, _idleHint: idleHint, _colourKey: colourKey, K: K
   };
 })();
 if (typeof module !== "undefined") module.exports = Music;

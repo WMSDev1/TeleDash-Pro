@@ -119,8 +119,11 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   Music view's own Options list (in its library) changes `fadeSeconds`, `fadeTo` and `skin` with
   the remote, through `POST /api/local/music/settings`.
 - Visualizers (`app/viz.js`) draw behind the Music view's artwork and controls: spectrum bars,
-  oscilloscope, radial, particles, plasma, or off. The visualizer button in the control row steps
-  through them; the choice is kept on the TV in `localStorage` key `teledash.viz` (it is not a
+  oscilloscope, radial, particles, plasma, waterfall (the spectrum's last few seconds), tunnel
+  (each frame is the last one, larger and dimmer, around a ring of the newest sound), ripples
+  (rings that leave the middle on each beat), meters (two needles: the low and the high half of
+  the spectrum, since the sound arrives as one channel), or off. The visualizer button in the
+  control row and the red key step through them; the choice is kept on the TV in `localStorage` key `teledash.viz` (it is not a
   setting). Each one draws from a frame of sound: `bands`, 64 numbers from 0 to 1 covering 40 Hz to
   16 kHz in equal musical steps (bass first), and `wave`, 256 numbers from -1 to 1. A frame comes
   from the TV's own sound (`Viz.sound(line)`, one line of the helper's sound stream; see "Playing
@@ -369,7 +372,9 @@ never leaves the helper; the lines go only to the dashboard on the same TV.
   along the controls, OK presses one, ↑ opens the library (playlists, albums, liked songs,
   recently played, queue, devices), Back closes the library and then the view (the music keeps
   playing); the remote's Play (415), Pause (19), Stop (413), Fast-forward (417, next) and Rewind
-  (412, previous) always act. After `music.fadeSeconds` without a button press the artwork and
+  (412, previous) always act. Colour keys are shortcuts here: red (403) the next visualizer,
+  without bringing a faded player back; green (404) the next look; blue (406) the Options list;
+  yellow is kept for video mode. After `music.fadeSeconds` without a button press the artwork and
   controls fade to `music.fadeTo` percent and drift (nothing sits still on an OLED); any button
   brings them back. The screen never goes idle while music is playing in this view.
 - QR: `app/qr.js` exposes `QR.matrix(text)` → array of rows of booleans (byte mode, error

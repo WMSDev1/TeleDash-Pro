@@ -89,4 +89,71 @@ assert.ok(Array.prototype.every.call(raw, function (v) { return v === 0; }) && A
   V.sound("not a line");                                        // never throws
 })();
 
+// Waterfall colours: black for silence, then the palette's three colours in turn.
+(function () {
+  const p = [[10, 20, 30], [100, 110, 120], [200, 210, 220]], c = [0, 0, 0];
+  assert.deepStrictEqual(Array.from(V._heat(0, p, c)), [0, 0, 0]);
+  assert.deepStrictEqual(Array.from(V._heat(1 / 3, p, c)).map(Math.round), [10, 20, 30]);
+  assert.deepStrictEqual(Array.from(V._heat(2 / 3, p, c)).map(Math.round), [100, 110, 120]);
+  assert.deepStrictEqual(Array.from(V._heat(1, p, c)).map(Math.round), [200, 210, 220]);
+  assert.deepStrictEqual(Array.from(V._heat(7, p, c)).map(Math.round), [200, 210, 220], "never past the last colour");
+  assert.deepStrictEqual(Array.from(V._heat(1 / 6, p, c)), [5, 10, 15]);
+})();
+
+// A meter needle: it reaches the level, overshoots a little on the way, and stays inside its stops.
+(function () {
+  const n = { p: 0, v: 0 };
+  let top = 0;
+  for (let i = 0; i < 120; i++) { V._swing(n, 0.6, 1 / 60); top = Math.max(top, n.p); }
+  assert.ok(Math.abs(n.p - 0.6) < 0.01, "settles on the level: " + n.p);
+  assert.ok(top > 0.6 && top < 0.72, "a small overshoot: " + top);
+  for (let i = 0; i < 60; i++) V._swing(n, 5, 0.1);             // a wild level and slow frames
+  assert.ok(n.p <= 1.06 && isFinite(n.v), "held by the end stop");
+  for (let i = 0; i < 60; i++) V._swing(n, -5, 0.1);
+  assert.ok(n.p >= -0.04);
+})();
+
+// Every visualizer draws without error, with sound and in silence, on a normal and a slow screen.
+// The canvas is a stand-in that accepts any drawing call.
+(function () {
+  let calls = 0;
+  function context() {
+    const state = {};
+    return new Proxy(state, {
+      get: function (t, k) {
+        if (k in t) return t[k];
+        if (k === "createImageData") return function (w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; };
+        if (k === "getImageData") return function (x, y, w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; };
+        if (k === "createLinearGradient") return function () { return { addColorStop: function () {} }; };
+        return function () { calls++; };
+      },
+      set: function (t, k, v) { t[k] = v; return true; }
+    });
+  }
+  function canvas() { const cx = context(); return { width: 1920, height: 1080, getContext: function () { return cx; } }; }
+  let frameFn = null, clock = 1000;
+  global.document = { createElement: canvas, hidden: false };
+  global.requestAnimationFrame = function (fn) { frameFn = fn; };
+  function run(frames, ms) { for (let i = 0; i < frames; i++) { clock += ms; frameFn(clock); } }
+  assert.deepStrictEqual(V.KINDS, ["bars", "scope", "radial", "particles", "plasma", "waterfall", "tunnel", "ripples", "meters", "off"]);
+  const names = [];
+  V.setPlaying(true);
+  V.start(canvas());
+  for (let k = 0; k < V.KINDS.length; k++) {
+    const before = calls;
+    run(40, 16);                                                // the made-up beat
+    V.setPlaying(false); run(240, 16); V.setPlaying(true);     // four seconds of silence, then sound again
+    run(20, 16);
+    if (V.stats().kind !== "off") assert.ok(calls > before, V.stats().kind + " drew something");
+    names.push(V.next());
+  }
+  assert.strictEqual(new Set(names).size, V.KINDS.length, "each has its own name");
+  assert.strictEqual(V.stats().low, false);
+  run(260, 60);                                                 // 17 frames a second: the slow-screen settings
+  assert.strictEqual(V.stats().low, true);
+  for (let k = 0; k < V.KINDS.length; k++) { run(30, 60); V.next(); }
+  V.stop();
+  delete global.document; delete global.requestAnimationFrame;
+})();
+
 console.log("viz checks passed");
