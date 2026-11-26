@@ -111,7 +111,7 @@ t.test("music settings: defaults, partial updates and limits", function () {
     t.rejects(function () { apply({ music: { fadeSeconds: 601 } }); }, /music.fadeSeconds must be a whole number from 0 to 600/),
     t.rejects(function () { apply({ music: { fadeTo: 101 } }); }, /music.fadeTo/),
     t.rejects(function () { apply({ music: { tile: "yes" } }); }, /music.tile must be true or false/),
-    t.rejects(function () { apply({ music: { skin: "neon" } }); }, /music.skin must be one of: retro, modern/),
+    t.rejects(function () { apply({ music: { skin: "neon" } }); }, /music.skin must be one of: retro, modern, slim/),
     t.rejects(function () { apply({ music: { visualizer: "bars" } }); }, /Unknown setting: music.visualizer/)
   ]);
 });

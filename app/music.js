@@ -48,6 +48,21 @@ var Music = (function () {
     return true;                                               // every key: the first press only wakes it
   }
   function artOk(u) { return typeof u === "string" && /^(https:\/\/|data:image\/)/.test(u); }
+  // Options step through a short list of values. A value set elsewhere (the phone allows any
+  // number) moves on to the next larger one in the list.
+  function nextChoice(values, cur) {
+    var i = values.indexOf(cur);
+    if (i >= 0) return values[(i + 1) % values.length];
+    for (i = 0; i < values.length; i++) if (values[i] > cur) return values[i];
+    return values[0];
+  }
+  var LOOKS = { retro: "Retro: a 1990s desktop player", modern: "Modern: plain, like the dashboard", slim: "Slim: one strip along the bottom" };
+  function optLabel(key, v) {
+    if (key === "skin") return LOOKS[v] || LOOKS.retro;
+    if (key === "fadeSeconds") return v ? v + " seconds without a button press" : "Never";
+    if (key === "fadeTo") return v ? "Stay faintly visible (" + v + "%)" : "Disappear, leaving only the visualizer";
+    return "";
+  }
   // The clock's four digits for a position: "m:ss" up to 99:59, a blank instead of a leading zero.
   function clockDigits(ms) {
     var s = Math.min(5999, Math.max(0, Math.floor((+ms || 0) / 1000))), m = Math.floor(s / 60), r = s % 60;
@@ -79,7 +94,14 @@ var Music = (function () {
   var MENU = [
     { kind: "menu", title: "Playlists", list: "playlists" }, { kind: "menu", title: "Albums", list: "albums" },
     { kind: "menu", title: "Liked songs", list: "liked" }, { kind: "menu", title: "Recently played", list: "recent" },
-    { kind: "menu", title: "Queue", list: "queue" }, { kind: "menu", title: "Devices", list: "devices" }
+    { kind: "menu", title: "Queue", list: "queue" }, { kind: "menu", title: "Devices", list: "devices" },
+    { kind: "menu", title: "Options", list: "options" }
+  ];
+  var OPTS = [
+    { key: "skin", title: "Look", values: ["retro", "modern", "slim"] },
+    { key: "fadeSeconds", title: "Hide the player after", values: [0, 5, 8, 15, 30, 60] },
+    { key: "fadeTo", title: "Once hidden", values: [0, 10, 25, 50] },
+    { key: "viz", title: "Visualizer" }
   ];
 
   // ---- made-up data for ?music=demo ----
@@ -157,8 +179,8 @@ var Music = (function () {
   function el(cls, text) { var e = document.createElement("div"); e.className = cls; if (text != null) e.textContent = text; return e; }
   function cfg() { return (typeof CONFIG !== "undefined" && CONFIG && CONFIG.music) || {}; }
   // The look: "retro" (a late-90s desktop player) unless the owner chose "modern". ?skin= previews one.
-  var qs = typeof location !== "undefined" && /[?&]skin=(retro|modern)/.exec(location.search);
-  function skin() { return qs ? qs[1] : cfg().skin === "modern" ? "modern" : "retro"; }
+  var qs = typeof location !== "undefined" && /[?&]skin=(retro|modern|slim)/.exec(location.search);
+  function skin() { return qs ? qs[1] : LOOKS[cfg().skin] ? cfg().skin : "retro"; }
   function fadeMs() { return Math.max(0, +cfg().fadeSeconds || 0) * 1000; }
 
   function position() {
@@ -207,8 +229,8 @@ var Music = (function () {
       title = "Nothing is playing";
       if (!msg) msg = "Start Spotify on a phone or speaker, or press Up for the library and pick a device.";
     } else if (!msg) title = "Connecting to Spotify…";
-    var retro = skin() === "retro";
-    E.music.className = retro ? "retro" : "";
+    var sk = skin(), retro = sk === "retro";
+    E.music.className = sk === "modern" ? "" : sk;
     setTitle(title, retro);
     E.martist.textContent = sub; E.malbum.textContent = album;
     E.mmsg.textContent = note || msg;
@@ -410,7 +432,34 @@ var Music = (function () {
       if (lib && view() === v) { if (!at) v.focus = 0; renderLib(); }
     });
   }
+  // ---- options: the look, the fade and the visualizer, changed with the remote ----
+  function optValue(o) { return o.key === "skin" ? skin() : +cfg()[o.key] || 0; }
+  function optRows() {
+    return OPTS.map(function (o) {
+      return { kind: "option", opt: o, title: o.title, art: "",
+        subtitle: o.key === "viz" ? (V ? V.name() : "Not available") : optLabel(o.key, optValue(o)) };
+    });
+  }
+  function setOption(o) {
+    if (o.key === "viz") { if (V) V.next(); }
+    else {
+      var v = nextChoice(o.values, optValue(o)), patch = {};
+      patch[o.key] = v;
+      if (typeof CONFIG !== "undefined" && CONFIG) { CONFIG.music = CONFIG.music || {}; CONFIG.music[o.key] = v; }
+      qs = null;                                                  // a look chosen here beats ?skin= in the address
+      if (!demo) Settings.musicSet(patch, function (d) {
+        if (!d || d.error || d[o.key] === undefined) say((d && d.error) || "That could not be saved, so it lasts only until the TV restarts.");
+      });
+    }
+    view().items = optRows();
+    render(); renderLib(); touch();
+  }
   function push(row) {
+    if (row.list === "options") {
+      lib.push({ title: "Options", kind: "options", items: optRows(), next: null, focus: 0 });
+      renderLib();
+      return;
+    }
     var v = { title: row.title, kind: row.list || row.kind, id: row.id, items: [], next: null, focus: 0 };
     if (row.kind === "playlist" || row.kind === "album") v.context = row.uri;
     lib.push(v);
@@ -420,6 +469,7 @@ var Music = (function () {
   function choose(i) {
     var v = view(), row = v.items[i];
     if (!row) return;
+    if (row.kind === "option") { setOption(row.opt); return; }
     if (row.kind === "menu" || row.kind === "playlist" || row.kind === "album") { push(row); return; }
     var r = row.kind === "all" ? { "do": "play", context: row.uri } : playRequest(v, i);
     if (!r) return;
@@ -437,7 +487,7 @@ var Music = (function () {
       if (artOk(row.art)) { th = document.createElement("img"); th.src = row.art; th.alt = ""; }
       else th = document.createElement("div");
       th.className = "mthumb";
-      if (row.kind !== "menu") r.appendChild(th);
+      if (row.kind !== "menu" && row.kind !== "option") r.appendChild(th);
       var tx = el("mtext");
       tx.appendChild(el("mt", row.title));
       var sub = row.subtitle || "";
@@ -551,7 +601,7 @@ var Music = (function () {
     isOpen: function () { return shown; },
     playing: function () { return !!(shown && st && st.playing); },
     demo: demo,
-    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, K: K
+    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, _nextChoice: nextChoice, _optLabel: optLabel, K: K
   };
 })();
 if (typeof module !== "undefined") module.exports = Music;

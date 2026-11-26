@@ -473,6 +473,32 @@ t.test("spotify: local music routes refuse bad input before the module sees it",
   }).then(unstub, function (e) { unstub(); throw e; });
 });
 
+t.test("music options: the TV app changes the look and the fade, and nothing else", function () {
+  return req("POST", "/api/local/music/settings", { body: { skin: "slim", fadeSeconds: 30 } }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    assert.strictEqual(r.json.skin, "slim");
+    assert.strictEqual(r.json.fadeSeconds, 30);
+    return Promise.all([
+      req("POST", "/api/local/music/settings", { body: { tile: true } }),
+      req("POST", "/api/local/music/settings", { body: { skin: "neon" } }),
+      req("POST", "/api/local/music/settings", { body: {} }),
+      req("POST", "/api/local/music/settings", { body: ["slim"] }),
+      req("POST", "/api/local/music/settings", { noKey: true, body: { skin: "retro" } })
+    ]);
+  }).then(function (rs) {
+    assert.strictEqual(rs[0].status, 400);
+    assert.ok(/Only fadeSeconds, fadeTo and skin/.test(rs[0].json.error));
+    assert.strictEqual(rs[1].status, 400);
+    assert.strictEqual(rs[2].status, 400);
+    assert.strictEqual(rs[3].status, 400);
+    assert.strictEqual(rs[4].status, 403);
+    return req("POST", "/api/local/music/settings", { body: { skin: "retro", fadeSeconds: 8 } });
+  }).then(function (r) {
+    assert.strictEqual(r.json.skin, "retro");
+  });
+});
+
 t.test("spotify: local music routes need the key and loopback", function () {
   stub({ state: function () { calls.push(["state"]); return Promise.resolve({ connected: true }); } });
   return req("GET", "/api/local/music", { noKey: true }).then(function (r) {

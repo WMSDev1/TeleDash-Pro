@@ -132,6 +132,7 @@ var Settings = (function () {
     music: function (cb) { call("GET", "/api/local/music", null, cb); },
     musicDo: function (body, cb) { call("POST", "/api/local/music", body, cb); },
     musicList: function (kind, o, cb) { call("GET", listPath(kind, o), null, cb); },
+    musicSet: function (body, cb) { call("POST", "/api/local/music/settings", body, cb); },
     pair: function (cb) { req("POST", "/api/local/pair", function (d) { cb(d && d.url ? d : null); }, 8000); },
     KEY: KEY
   };

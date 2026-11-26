@@ -114,7 +114,7 @@ var Viz = (function () {
     }
     for (i = 0; i < wave.length; i++) {
       var p = i / wave.length * 6.2832;
-      wave[i] = kick * 0.6 * Math.sin(p * 2 + t * 9) + 0.25 * Math.sin(p * 7 + t * 13) + hat * 0.12 * (Math.random() - 0.5);
+      wave[i] = (0.3 + kick * 0.5) * Math.sin(p * 2 + t * 2.2) + 0.22 * Math.sin(p * 5 - t * 3.1) + hat * 0.08 * Math.sin(p * 17 + t * 5);
     }
   }
 
@@ -209,7 +209,15 @@ var Viz = (function () {
       sum += v;
       if (i < 12) { bass += v; rb += raw[i]; }                    // up to about 120 Hz: the kick drum
     }
-    for (i = 0; i < WAVE; i++) frame.wave[i] = rawWave[i];
+    // The trace: averaged over its neighbours so it is a line and not a scribble, eased towards
+    // each new reading so it flows, and pinned at both ends.
+    var ease = Math.min(1, dt * 14);
+    for (i = 0; i < WAVE; i++) {
+      var a = 0, c = 0, j;
+      for (j = i - 3; j <= i + 3; j++) if (j >= 0 && j < WAVE) { a += rawWave[j]; c++; }
+      a = a / c * Math.pow(Math.sin(Math.PI * i / (WAVE - 1)), 0.5);
+      frame.wave[i] += (a - frame.wave[i]) * ease;
+    }
     frame.level = sum / BANDS; frame.bass = bass / 12;
     // A beat: the bass jumps well above its own recent average.
     rb /= 12; cool -= dt; frame.hit = false;
@@ -219,7 +227,7 @@ var Viz = (function () {
   }
 
   // ---- the visualizers ----
-  var sprite = null, grad = null, parts = [], emit = 0, pl = null, pt = 0, SIN = null;
+  var sprite = null, grad = null, parts = [], sparks = [], emit = 0, pl = null, pt = 0, SIN = null;
   var BAR_H = 720, SEG = 16;                                      // tallest bar; one retro block and its gap
 
   function clear() { cx.globalAlpha = 1; cx.clearRect(0, 0, W, H); }
@@ -270,17 +278,39 @@ var Viz = (function () {
     cx.globalAlpha = 1;
   }
   function scope(dt) {
-    dim(14, dt);
-    var mid = H * 0.42, amp = H * 0.3, i, c = pal()[0];
+    clear();
+    if (frame.level < 0.003) { sparks = []; return; }
+    var mid = H * 0.42, amp = H * 0.32, STEP = 4, n = WAVE / STEP, c = pal()[0], i, s, px, py, x, y;
+    function yAt(k) { return mid + Math.max(-1, Math.min(1, frame.wave[k])) * amp; }
+    // A curve through every fourth point: smooth however the sound jumps.
     cx.lineJoin = "round"; cx.lineCap = "round";
     cx.beginPath();
-    for (i = 0; i < WAVE; i++) {
-      var x = i / (WAVE - 1) * W, y = mid + Math.max(-1, Math.min(1, frame.wave[i])) * amp;
-      if (i) cx.lineTo(x, y); else cx.moveTo(x, y);
+    px = 0; py = yAt(0); cx.moveTo(px, py);
+    for (i = 1; i <= n; i++) {
+      x = i / n * W; y = yAt(Math.min(WAVE - 1, i * STEP));
+      cx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2);
+      px = x; py = y;
     }
-    if (frame.level < 0.003) return;
-    cx.strokeStyle = rgb(c, 0.22); cx.lineWidth = 16; cx.stroke();          // the glow, then the trace
-    cx.strokeStyle = rgb(mix(c, [255, 255, 255], 0.35)); cx.lineWidth = 4; cx.stroke();
+    cx.lineTo(W, py);
+    cx.strokeStyle = rgb(c, 0.1); cx.lineWidth = 34; cx.stroke();            // a wide glow, a halo, then the trace
+    cx.strokeStyle = rgb(c, 0.3); cx.lineWidth = 12; cx.stroke();
+    cx.strokeStyle = rgb(mix(c, [255, 255, 255], 0.45)); cx.lineWidth = 3.5; cx.stroke();
+    // Sparks drift off the line: a few all the time, a burst on each beat.
+    var want = (frame.hit ? 14 : 0) + (Math.random() < dt * (4 + frame.level * 40) ? 1 : 0), max = low ? 50 : 110;
+    while (want-- > 0 && sparks.length < max) {
+      var k = 8 + Math.floor(Math.random() * (WAVE - 16)), dir = frame.wave[k] >= 0 ? 1 : -1;
+      sparks.push({ x: k / (WAVE - 1) * W, y: yAt(k), vx: (Math.random() - 0.5) * 60, vy: dir * (30 + Math.random() * 130),
+        life: 1, rate: 1 / (0.7 + Math.random() * 1.1), size: 1.5 + Math.random() * 2.5, c: Math.floor(Math.random() * BANDS) });
+    }
+    for (i = sparks.length - 1; i >= 0; i--) {
+      s = sparks[i];
+      s.life -= dt * s.rate;
+      if (s.life <= 0) { sparks[i] = sparks[sparks.length - 1]; sparks.pop(); continue; }
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vy *= 1 - dt * 1.2;
+      cx.globalAlpha = s.life * 0.9; cx.fillStyle = ramp[s.c];
+      cx.beginPath(); cx.arc(s.x, s.y, s.size, 0, 6.2832); cx.fill();
+    }
+    cx.globalAlpha = 1;
   }
   function radial(dt, t) {
     clear();
@@ -356,16 +386,19 @@ var Viz = (function () {
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
-    var dt = Math.min(0.1, Math.max(0.001, (now - last) / 1000 || 0.016));
+    var gap = (now - last) / 1000 || 0.016, dt = Math.min(0.1, Math.max(0.001, gap));
     last = now;
     if (document.hidden) return;
-    // A screen that cannot keep up (frames slower than 25 a second) gets fewer particles and a coarser plasma.
-    pace += (dt - pace) * 0.05;
-    if (++frames === 120 && pace > 0.04) low = true;
+    // A screen that cannot keep up (frames slower than 25 a second) gets fewer particles and a
+    // coarser plasma. Long gaps are not counted: that is a browser resting a window nobody can see.
+    if (gap < 0.2) {
+      pace += (dt - pace) * 0.05;
+      if (++frames % 120 === 0 && pace > 0.04) low = true;
+    }
     colours();
     advance(dt, now / 1000);
     var k = KINDS[kind][0];
-    if (k !== drawn) { clear(); parts = []; drawn = k; }
+    if (k !== drawn) { clear(); parts = []; sparks = []; drawn = k; }
     DRAW[k](dt, now / 1000);
   }
   function start(canvas) {

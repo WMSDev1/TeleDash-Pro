@@ -244,7 +244,7 @@ var V = {
       tile: bool(o.tile, "music.tile"),
       fadeSeconds: int(o.fadeSeconds, "music.fadeSeconds", 0, 600),
       fadeTo: int(o.fadeTo, "music.fadeTo", 0, 100),
-      skin: oneOf(o.skin, "music.skin", ["retro", "modern"])
+      skin: oneOf(o.skin, "music.skin", ["retro", "modern", "slim"])
     };
   }
 };

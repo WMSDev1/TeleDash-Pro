@@ -44,7 +44,7 @@ Open it with the **Music** tile or the remote's **yellow** button.
 |---|---|
 | Left / Right | Move along the controls |
 | OK | Press the highlighted control |
-| Up | Open the library: playlists, albums, liked songs, recently played, the queue, devices |
+| Up | Open the library: playlists, albums, liked songs, recently played, the queue, devices, options |
 | Down | Hide the artwork and controls now |
 | Back | Close the library, then leave the Music view (the music keeps playing) |
 | Play, Pause, Stop | Play or pause |
@@ -74,13 +74,16 @@ being worked on.
 ## Fade, and the look
 
 After a few seconds without a button press, the artwork and controls fade away, and any button
-brings them back. On the setup page you can set:
+brings them back. With the remote, press **Up** for the library and choose **Options**; each
+press of **OK** steps an option to its next value. The setup page on your phone has the same
+settings. You can set:
 
 - **how long** before they fade (0 = never);
 - **how much stays** once faded, from 0% (nothing) to 100% (no change). Whatever stays drifts
   slowly, so nothing sits still on an OLED screen;
 - **the look**: *retro*, a late-1990s desktop music player with silver windows and a green
-  display, or *modern*, in the dashboard's own style.
+  display; *modern*, in the dashboard's own style; or *slim*, one strip along the bottom that
+  leaves the screen to the visualizer.
 
 While music is playing in the Music view the screen does not go to standby. Paused and left
 alone, it goes to standby as usual.

@@ -240,6 +240,21 @@ function local(req, res, route, query) {
       return spotify.command(b);
     }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
   }
+  // The Music view's own Options list: the look and the fade, changed with the remote. The tile
+  // stays with the setup page, which is where signing in turns it on.
+  if (key === "POST /api/local/music/settings") {
+    return readJsonBody(req).then(function (b) {
+      if (!util.isObject(b)) throw util.httpError(400, "Send the options to change, such as {\"skin\": \"modern\"}.");
+      var keys = Object.keys(b);
+      keys.forEach(function (k) {
+        if (["fadeSeconds", "fadeTo", "skin"].indexOf(k) < 0) throw util.httpError(400, "Only fadeSeconds, fadeTo and skin can be changed here.");
+      });
+      if (!keys.length) throw util.httpError(400, "Send the options to change, such as {\"skin\": \"modern\"}.");
+      var r = settings.save({ music: b });
+      afterSettingsSaved(r);
+      return r.settings.music;
+    }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
   if (key === "GET /api/local/music/list") {
     return Promise.resolve().then(function () {
       var kind = query.get("kind");

@@ -39,6 +39,17 @@ assert.strictEqual(M._artOk("javascript:alert(1)"), false);
 assert.strictEqual(M._artOk(""), false);
 assert.strictEqual(M._artOk(null), false);
 
+// Options step through their values and wrap; a value from the phone moves to the next larger one.
+assert.strictEqual(M._nextChoice([0, 5, 8, 15, 30, 60], 8), 15);
+assert.strictEqual(M._nextChoice([0, 5, 8, 15, 30, 60], 60), 0);
+assert.strictEqual(M._nextChoice([0, 5, 8, 15, 30, 60], 20), 30);
+assert.strictEqual(M._nextChoice([0, 5, 8, 15, 30, 60], 600), 0);
+assert.strictEqual(M._nextChoice(["retro", "modern", "slim"], "slim"), "retro");
+assert.strictEqual(M._optLabel("fadeSeconds", 0), "Never");
+assert.ok(/15 seconds/.test(M._optLabel("fadeSeconds", 15)));
+assert.ok(/only the visualizer/.test(M._optLabel("fadeTo", 0)));
+assert.ok(/^Slim/.test(M._optLabel("skin", "slim")) && /^Retro/.test(M._optLabel("skin", "nonsense")));
+
 // The LCD clock: m:ss with a blank in place of a leading zero, and it tops out at 99:59.
 assert.deepStrictEqual(M._clockDigits(66000), [null, 1, 0, 6]);
 assert.deepStrictEqual(M._clockDigits(754000), [1, 2, 3, 4]);

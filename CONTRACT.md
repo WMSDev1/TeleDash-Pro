@@ -114,8 +114,10 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   `music.fadeSeconds`: 0–600, seconds after the last button press before the Music view's artwork
   and controls fade (0 = never). `music.fadeTo`: 0–100, the percent of full opacity they rest at
   once faded (0 = gone, leaving only the visualizer). `music.skin`: `"retro"` (a late-90s desktop
-  player: bevelled silver windows, a black LCD with a segment clock) or `"modern"` (plain text and
-  round buttons in the dashboard's own style).
+  player: bevelled silver windows, a black LCD with a segment clock), `"modern"` (plain text and
+  round buttons in the dashboard's own style) or `"slim"` (one strip along the bottom edge). The
+  Music view's own Options list (in its library) changes `fadeSeconds`, `fadeTo` and `skin` with
+  the remote, through `POST /api/local/music/settings`.
 - Visualizers (`app/viz.js`) draw behind the Music view's artwork and controls: spectrum bars,
   oscilloscope, radial, particles, plasma, or off. The visualizer button in the control row steps
   through them; the choice is kept on the TV in `localStorage` key `teledash.viz` (it is not a
@@ -154,6 +156,7 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `POST /api/local/update` | starts installing the latest release now (same steps as automatic update) → `{ "started": true }` or `{ "error" }` |
 | `GET /api/local/music` | what Spotify is playing (see "Spotify"): `{ "connected": false }` when not signed in, else `{ "connected": true, "active", "playing", "progressMs", "durationMs", "at", "shuffle", "repeat", "device", "track" }`. Cached ≤1 s |
 | `POST /api/local/music` | body `{ "do": "<command>", … }` (see "Spotify") → `{ "ok": true }`. Unknown command or bad field → 400; not signed in or no active device → 409 |
+| `POST /api/local/music/settings` | Body: any of `{ "fadeSeconds", "fadeTo", "skin" }`, validated as in the settings schema. Saves them and answers with the whole `music` settings object. Any other key (including `tile`) → 400 |
 | `GET /api/local/music/list?kind=<kind>&id=<id>&offset=<n>&q=<text>` | `{ "items": [ { "kind", "uri", "id", "title", "subtitle", "art", "active"? } ], "next": <offset> or null }` (see "Spotify"). Unknown kind → 400 |
 
 ### Setup endpoints — from a phone on the same network

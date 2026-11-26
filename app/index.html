@@ -202,6 +202,27 @@
   .ms { font-size: 22px; color: #8b95a3; margin-top: 2px; }
   #mlibfoot { font-size: 22px; color: #7d8794; margin-top: 14px; }
 
+  /* The slim look: one strip along the bottom, so the visualizer keeps the screen. */
+  #music.slim #mwin { left: 60px; bottom: 44px; width: 1800px; box-sizing: border-box; padding: 14px 22px;
+    background: rgba(10,12,16,.74); border-radius: 18px; text-shadow: none; }
+  #music.slim #mbody { grid-template-columns: 104px 430px 1fr; grid-column-gap: 22px; align-items: center; }
+  #music.slim #mart { grid-row: 1 / span 2; width: 104px; height: 104px; border-radius: 10px; }
+  #music.slim #mlcd { grid-column: 2; grid-row: 1 / span 2; }
+  #music.slim #mtitle { font-size: 34px; font-weight: 600; }
+  #music.slim #martist { font-size: 26px; margin-top: 2px; }
+  #music.slim #malbum { display: none; }
+  #music.slim #mctl { grid-column: 3; grid-row: 1; margin-top: 0; height: 68px; }
+  #music.slim .mbtn { min-width: 64px; height: 60px; margin: 4px 8px 4px 0; padding: 0 12px; font-size: 22px; border-radius: 30px; }
+  #music.slim .mbtn svg { width: 32px; height: 32px; }
+  #music.slim .mbtn.focus { box-shadow: 0 0 0 4px #ffb300; }
+  #music.slim #mseek { grid-column: 3; grid-row: 2; margin-top: 4px; }
+  #music.slim #mpos, #music.slim #mdur { width: 74px; font-size: 22px; }
+  #music.slim #mbar { height: 6px; }
+  #music.slim #mstat { grid-column: 1 / span 3; margin-top: 0; min-height: 0; }
+  #music.slim #mdev { display: none; }
+  #music.slim #mmsg { font-size: 24px; margin-top: 8px; }
+  body.mlib #music.slim #mwin { width: 1010px; }
+
   /* The retro look: a late-90s desktop player. Silver bevelled windows, a navy title bar, a black
      LCD with a segment clock, buttons that press in. Square corners and 3px bevels throughout. */
   #music.retro { font-family: Tahoma, "MS Sans Serif", "Helvetica Neue", Arial, sans-serif; }
