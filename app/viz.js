@@ -499,35 +499,39 @@ var Viz = (function () {
   }
 
   // Ripples: a ring leaves the middle on every beat (and quieter ones in between), keeping the
-  // shape of the spectrum at the moment it left, bass at the top.
-  var rings = [], ringWait = 0, RING = null;
+  // shape of the spectrum at the moment it left, bass at the top. Drawn at half size and stretched:
+  // a TV draws long outlines slowly (12 frames a second at full size on a 2021 OLED), pictures fast.
+  var rings = [], ringWait = 0, RING = null, rp = null;
   function ripples(dt, t) {
-    clear();
-    var X = W / 2, Y = H * 0.48, N = BANDS * 2, i, j, r;
+    var s = low ? 3 : 2, w = Math.round(W / s), h = Math.round(H / s), X = w / 2, Y = h * 0.48, N = BANDS, i, j, r;
     if (!RING) { RING = []; for (i = 0; i < N; i++) { var a0 = (i + 0.5) / N * 6.2832 - Math.PI / 2; RING.push([Math.cos(a0), Math.sin(a0)]); } }
     ringWait -= dt;
-    if (frame.level >= 0.003 && (frame.hit || ringWait <= 0) && rings.length < (low ? 10 : 22)) {
-      rings.push({ r: 46 + frame.bass * 44, v: 240 + frame.level * 420 + (frame.hit ? 170 : 0), life: 1, w: frame.hit ? 8 : 3,
+    if (frame.level >= 0.003 && (frame.hit || ringWait <= 0) && rings.length < (low ? 7 : 12)) {
+      rings.push({ r: 46 + frame.bass * 44, v: 260 + frame.level * 440 + (frame.hit ? 180 : 0), life: 1, w: frame.hit ? 8 : 3,
         a: frame.hit ? 1 : 0.5, c: Math.floor(t * 9) % BANDS, s: new Float32Array(frame.bands) });
-      ringWait = 0.24;
+      ringWait = 0.3;
     }
-    if (!rings.length) return;
-    cx.lineJoin = "round";
+    if (!rings.length) { clear(); return; }
+    if (!rp || rp.w !== w) { rp = { w: w, cv: sheet(w, h) }; rp.cx = rp.cv.getContext("2d"); }
+    var g = rp.cx;
+    g.globalAlpha = 1; g.clearRect(0, 0, w, h);
     for (i = rings.length - 1; i >= 0; i--) {
       r = rings[i];
-      r.r += r.v * dt; r.life -= dt * 0.42;
-      if (r.life <= 0 || r.r > 1300) { rings[i] = rings[rings.length - 1]; rings.pop(); continue; }
-      cx.globalAlpha = r.a * r.life; cx.strokeStyle = ramp[r.c]; cx.lineWidth = r.w * (0.4 + r.life * 0.6);
-      cx.beginPath();
-      for (j = 0; j < N; j++) {
-        var rr = r.r * (1 + r.s[j < BANDS ? j : N - 1 - j] * 0.24 * r.life), x = X + RING[j][0] * rr, y = Y + RING[j][1] * rr;
-        if (j) cx.lineTo(x, y); else cx.moveTo(x, y);
+      r.r += r.v * dt; r.life -= dt * 0.5;
+      if (r.life <= 0 || r.r > 1150) { rings[i] = rings[rings.length - 1]; rings.pop(); continue; }
+      g.globalAlpha = r.a * r.life; g.strokeStyle = ramp[r.c]; g.lineWidth = Math.max(1, r.w * (0.4 + r.life * 0.6) / s);
+      g.beginPath();
+      for (j = 0; j < N; j++) {                                    // every other band, mirrored left and right
+        var b = j < N / 2 ? j * 2 : (N - 1 - j) * 2, rr = r.r * (1 + r.s[b] * 0.24 * r.life) / s, x = X + RING[j][0] * rr, y = Y + RING[j][1] * rr;
+        if (j) g.lineTo(x, y); else g.moveTo(x, y);
       }
-      cx.closePath(); cx.stroke();
+      g.closePath(); g.stroke();
     }
-    cx.globalAlpha = 0.25 + frame.beat * 0.6; cx.fillStyle = rgb(pal()[0]);
-    cx.beginPath(); cx.arc(X, Y, 16 + frame.bass * 44 + frame.beat * 14, 0, 6.2832); cx.fill();
-    cx.globalAlpha = 1;
+    g.globalAlpha = 0.25 + frame.beat * 0.6; g.fillStyle = rgb(pal()[0]);
+    g.beginPath(); g.arc(X, Y, (16 + frame.bass * 44 + frame.beat * 14) / s, 0, 6.2832); g.fill();
+    clear();
+    cx.imageSmoothingEnabled = true;
+    cx.drawImage(rp.cv, 0, 0, W, H);
   }
 
   // Meters: two needles, one for the low half of the spectrum and one for the high half (the sound
@@ -571,7 +575,7 @@ var Viz = (function () {
 
   var DRAW = { bars: bars, scope: scope, radial: radial, particles: particles, plasma: plasma,
     waterfall: waterfall, tunnel: tunnel, ripples: ripples, meters: meters, off: function () {} };
-  function forget() { parts = []; sparks = []; rings = []; wf = null; tn = null; }   // what one visualizer left behind
+  function forget() { parts = []; sparks = []; rings = []; wf = null; tn = null; rp = null; }   // what one visualizer left behind
 
   function loop(now) {
     if (!running) return;
