@@ -12,6 +12,10 @@
 //   music(cb), musicDo(body, cb), musicList(kind, {id, offset, q}, cb) -> cb(answer or null, HTTP status):
 //                                       the answer is passed on even for an error status, so the
 //                                       helper's plain-English { error } can be shown
+//   musicToken(cb), musicFix(cb)        for Spotify's player in this page (player.js): a short-lived
+//                                       token, and the helper's repair of that player
+//   sound(onLine, onEnd) -> stop()      the helper's measurements of the sound the TV is playing,
+//                                       one line of text at a time, until stop() is called
 var CONFIG;
 var Settings = (function () {
   var BASE = "http://127.0.0.1:8770", KEY = "teledash.settings", POLL_MS = 30000;
@@ -98,6 +102,41 @@ var Settings = (function () {
     return p;
   }
 
+  // The sound stream: one request that stays open while the helper keeps writing lines to it.
+  // onLine(text) gets the newest complete line each time some arrive; onEnd(status) is called if
+  // the stream ends by itself (404: this TV offers no sound to measure; 0: the helper is gone).
+  function sound(onLine, onEnd) {
+    var stopped = false, ctl = null;
+    function end(status) { if (!stopped) { stopped = true; onEnd(status); } }
+    withKey(function () {
+      if (stopped) return;
+      if (typeof fetch !== "function" || typeof TextDecoder !== "function") { end(404); return; }
+      var opts = { headers: { "X-TeleDash-Local": key } };
+      try { ctl = new AbortController(); opts.signal = ctl.signal; } catch (e) { ctl = null; }
+      fetch(BASE + "/api/local/music/sound", opts).then(function (res) {
+        if (res.status === 403) needKey = true;                // a stale key: the next try reads it again
+        if (!res.ok || !res.body || !res.body.getReader) { end(res.status || 0); return; }
+        var reader = res.body.getReader(), text = new TextDecoder(), rest = "";
+        function more() {
+          return reader.read().then(function (r) {
+            if (stopped) { try { reader.cancel(); } catch (e) {} return; }
+            if (r.done) { end(200); return; }
+            rest += text.decode(r.value, { stream: true });
+            var lines = rest.split("\n");
+            rest = lines.pop();
+            if (lines.length) onLine(lines[lines.length - 1]);  // older lines are already out of date
+            return more();
+          });
+        }
+        return more();
+      }).then(null, function () { end(0); });
+    });
+    return function () {
+      stopped = true;
+      if (ctl) { try { ctl.abort(); } catch (e) {} }
+    };
+  }
+
   function setUp(v) {
     if (v === up) return;
     up = v;
@@ -133,6 +172,9 @@ var Settings = (function () {
     musicDo: function (body, cb) { call("POST", "/api/local/music", body, cb); },
     musicList: function (kind, o, cb) { call("GET", listPath(kind, o), null, cb); },
     musicSet: function (body, cb) { call("POST", "/api/local/music/settings", body, cb); },
+    musicToken: function (cb) { call("GET", "/api/local/music/token", null, cb); },
+    musicFix: function (cb) { call("POST", "/api/local/music/player", {}, cb); },
+    sound: sound,
     pair: function (cb) { req("POST", "/api/local/pair", function (d) { cb(d && d.url ? d : null); }, 8000); },
     KEY: KEY
   };

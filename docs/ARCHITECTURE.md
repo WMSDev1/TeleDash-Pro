@@ -80,7 +80,15 @@ Google sign-in, which needs a public address for Google to return to:
   defaults and plain app tiles, and says "Setup helper not running".
 - **Secrets never reach the browser.** Calendar addresses, Google keys and feed keys live in
   `secrets.json` on the TV, readable only by root. The dashboard asks the setup server for
-  results (events, feed numbers), never for keys.
+  results (events, feed numbers), never for keys. The one exception is Spotify's player, which
+  runs in the dashboard and cannot work without a token: it is given the one-hour access token,
+  never the lasting sign-in.
+- **Spotify plays on the TV through Spotify's own player.** The dashboard loads Spotify's Web
+  Playback SDK, so the TV shows up as a Spotify device. That player assumes a newer browser than
+  the TV has, and stops each song after ten seconds; the helper repairs it through the TV's own
+  web inspector, which is open on TVs with developer mode on. On a TV without it, Music still
+  works as a remote control for other devices. The helper also measures the TV's sound (from the
+  mixer's own copy, never a microphone) so the visualizers move with the music.
 - **Setup from a phone, not the remote.** Typing keys with a TV remote is slow and error-prone,
   so the TV shows a QR code with a one-time code that opens the setup page on the phone.
 - **No Google device flow.** Google's sign-in for TVs and other limited-input devices does not

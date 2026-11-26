@@ -1,7 +1,8 @@
 // The visualizers behind the Music view (CONTRACT.md "Music view"). Everything drawn here reads one
 // small "frame": 64 loudness values spaced evenly in pitch, a short waveform, and a beat pulse.
 // Where the frame comes from is a separate matter:
-//   - Viz.feed({ bands, wave })   real sound, measured elsewhere (the helper on a TV)
+//   - Viz.sound(line)             real sound, measured by the helper on a TV (one line of its stream)
+//   - Viz.feed({ bands, wave })   real sound, measured elsewhere and already shaped into heights
 //   - Viz.capture("tab" | "mic")  real sound from this computer, for previewing in a browser
 //   - otherwise a made-up beat, so there is something to look at; frame.live says which
 //   Viz.start(canvas) / stop()    draw while the Music view is open
@@ -57,6 +58,22 @@ var Viz = (function () {
       out[i] = shape(v / 255, i, bins.length);
     }
     return out;
+  }
+  // One line of the helper's sound stream (service/lib/sound.js): "-" for silence, otherwise 640
+  // hex characters: 64 loudness bytes on the analyser's scale, then 256 waveform bytes around 128.
+  // Fills levels (0 to 1) and wave (-1 to 1); returns "loud", "silent", or "" for a line that is neither.
+  function readLine(line, levels, wave) {
+    var i;
+    if (line === "-") {
+      for (i = 0; i < levels.length; i++) levels[i] = 0;
+      for (i = 0; i < wave.length; i++) wave[i] = 0;
+      return "silent";
+    }
+    if (typeof line !== "string" || line.length !== 2 * (levels.length + wave.length) || /[^0-9a-f]/.test(line)) return "";
+    for (i = 0; i < levels.length; i++) levels[i] = parseInt(line.substr(i * 2, 2), 16) / 255;
+    var at = levels.length * 2;
+    for (i = 0; i < wave.length; i++) wave[i] = (parseInt(line.substr(at + i * 2, 2), 16) - 128) / 127;
+    return "loud";
   }
   // Where a bar is one frame later: up fast, down slowly (faster from high up).
   function smooth(cur, target, dt) {
@@ -126,6 +143,9 @@ var Viz = (function () {
   var frame = { bands: new Float32Array(BANDS), peaks: new Float32Array(BANDS), wave: new Float32Array(WAVE),
     level: 0, bass: 0, beat: 0, hit: false, live: false };
   var bassAvg = 0, cool = 0, agc = 0.5, wagc = 0.3, cap = null, fed = null;
+  // The helper's sound stream: the newest line, when it came, and when it last carried sound.
+  var heard = { levels: new Float32Array(BANDS), wave: new Float32Array(WAVE), at: 0, loudAt: 0 };
+  var STALE_MS = 600, QUIET_MS = 10000;
   var artUrl = "", artPal = null, palKey = "", ramp = [], lut = null;
 
   function store(v) {
@@ -174,15 +194,19 @@ var Viz = (function () {
       cb(null);
     }, function () { cb("Sound sharing was cancelled."); });
   }
-  function readCapture(dt) {
+  // Quiet and loud sources should both fill the screen: follow the loudest recent band.
+  function fill(dt) {
     var i, peak = 0;
-    cap.an.getByteFrequencyData(cap.freq);
-    bandLevels(cap.freq, cap.bins, raw);
-    // Quiet and loud sources should both fill the screen: follow the loudest recent band.
     for (i = 0; i < BANDS; i++) if (raw[i] > peak) peak = raw[i];
     agc = Math.max(peak, agc - dt * 0.04);
     var gain = 0.92 / Math.max(0.3, agc);
     for (i = 0; i < BANDS; i++) raw[i] = clamp01(raw[i] * gain);
+  }
+  function readCapture(dt) {
+    var i;
+    cap.an.getByteFrequencyData(cap.freq);
+    bandLevels(cap.freq, cap.bins, raw);
+    fill(dt);
     // Waveform: start at an upward crossing so the trace stands still rather than sliding.
     cap.an.getByteTimeDomainData(cap.time);
     var stride = 4, start = 0, wp = 0;
@@ -195,10 +219,17 @@ var Viz = (function () {
 
   // ---- one frame of sound ----
   function advance(dt, t) {
-    var i, sum = 0, bass = 0, rb = 0;
+    var i, sum = 0, bass = 0, rb = 0, now = Date.now();
     frame.live = true;
     if (cap) readCapture(dt);
-    else if (fed && Date.now() - fed.at < 600) {
+    // The TV's own sound. Trusted through pauses and quiet passages; after ten silent seconds
+    // the music must be playing somewhere else, and the made-up beat takes over.
+    else if (now - heard.at < STALE_MS && now - heard.loudAt < QUIET_MS) {
+      for (i = 0; i < BANDS; i++) raw[i] = shape(heard.levels[i], i, BANDS);
+      fill(dt);
+      for (i = 0; i < WAVE; i++) rawWave[i] = heard.wave[i];
+    }
+    else if (fed && now - fed.at < STALE_MS) {
       for (i = 0; i < BANDS; i++) raw[i] = clamp01(+fed.bands[i] || 0);
       for (i = 0; i < WAVE; i++) rawWave[i] = fed.wave ? +fed.wave[i] || 0 : 0;
     } else { synth(raw, rawWave, t, playing); frame.live = false; }
@@ -446,11 +477,17 @@ var Viz = (function () {
     setPlaying: function (p) { playing = !!p; },
     // Real sound measured elsewhere: { bands: 64 numbers 0 to 1, wave: 256 numbers -1 to 1 (optional) }.
     feed: function (f) { if (f && f.bands && f.bands.length >= BANDS) fed = { bands: f.bands, wave: f.wave && f.wave.length >= WAVE ? f.wave : null, at: Date.now() }; },
+    sound: function (line) {
+      var got = readLine(line, heard.levels, heard.wave);
+      if (!got) return;
+      heard.at = Date.now();
+      if (got === "loud") heard.loudAt = heard.at;
+    },
     live: function () { return frame.live; },
     stats: function () { return { fps: Math.round(1 / pace), low: low, kind: KINDS[kind][0], live: frame.live, capturing: !!cap, palette: artPal ? "artwork" : "default" }; },
     computer: computer, BANDS: BANDS, WAVE: WAVE, F_MIN: F_MIN, F_MAX: F_MAX, FFT: FFT,
     _bandEdges: bandEdges, _bandBins: bandBins, _bandLevels: bandLevels, _shape: shape, _smooth: smooth,
-    _pickPalette: pickPalette, _synth: synth
+    _pickPalette: pickPalette, _synth: synth, _readLine: readLine
   };
 })();
 if (typeof module !== "undefined") module.exports = Viz;

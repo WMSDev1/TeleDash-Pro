@@ -666,6 +666,73 @@ t.test("list: validation errors reject 400 and send nothing", function () {
     });
 });
 
+// Playing on the TV itself: the token for Spotify's player in the dashboard.
+t.test("sign-in asks for the player's permissions", function () {
+  ["streaming", "user-read-email", "user-read-private"].forEach(function (s) {
+    assert.ok(spotify.SCOPES.split(" ").indexOf(s) >= 0, s);
+  });
+});
+
+t.test("playerToken: a sign-in with the player's permissions gets the current token, with no request", function () {
+  clearMocks(); spotify._reset();
+  signInFixture("at-player");
+  secrets.saveSpotify({ scope: spotify.SCOPES });
+  return spotify.playerToken().then(function (r) {
+    assert.strictEqual(r.token, "at-player");
+    assert.ok(r.expires > Date.now());
+    assert.deepStrictEqual(Object.keys(r).sort(), ["expires", "token"], "nothing else, and never the refresh token");
+    assert.strictEqual(jsonCalls.length, 0);
+  });
+});
+
+t.test("playerToken: a sign-in from before permissions were recorded is refreshed once to learn them", function () {
+  clearMocks(); spotify._reset();
+  signInFixture("at-old");
+  secrets.saveSpotify({ scope: undefined });
+  jsonReplies.push({ access_token: "at-new", expires_in: 3600, scope: spotify.SCOPES });
+  return spotify.playerToken().then(function (r) {
+    assert.strictEqual(r.token, "at-new");
+    assert.strictEqual(jsonCalls.length, 1);
+    assert.strictEqual(formBody(jsonCalls[0]).grant_type, "refresh_token");
+    assert.strictEqual(secrets.load().spotify.scope, spotify.SCOPES);
+    return spotify.playerToken();
+  }).then(function (r) {
+    assert.strictEqual(r.token, "at-new");
+    assert.strictEqual(jsonCalls.length, 1, "learned once");
+  });
+});
+
+t.test("playerToken: a sign-in without the player's permissions is asked to sign in again", function () {
+  clearMocks(); spotify._reset();
+  signInFixture("at-old");
+  secrets.saveSpotify({ scope: undefined });
+  jsonReplies.push({ access_token: "at-narrow", expires_in: 3600, scope: "user-read-playback-state user-modify-playback-state" });
+  return t.rejects(function () { return spotify.playerToken(); }, /sign in to Spotify again on the setup page/, 409).then(function () {
+    return t.rejects(function () { return spotify.playerToken(); }, /sign in to Spotify again/, 409);
+  }).then(function () {
+    assert.strictEqual(jsonCalls.length, 1, "Spotify is not asked again each time");
+    // Spotify's answer may leave the permissions out: then they count as unknown, not as granted.
+    clearMocks(); spotify._reset();
+    signInFixture("at-old");
+    secrets.saveSpotify({ scope: undefined });
+    jsonReplies.push({ access_token: "at-x", expires_in: 3600 });
+    return t.rejects(function () { return spotify.playerToken(); }, /sign in to Spotify again/, 409);
+  }).then(function () {
+    assert.strictEqual(secrets.load().spotify.scope, "");
+    // Streaming alone is not enough: Spotify's player needs all three.
+    secrets.saveSpotify({ scope: "streaming user-read-playback-state" });
+    return t.rejects(function () { return spotify.playerToken(); }, /sign in to Spotify again/, 409);
+  });
+});
+
+t.test("playerToken: not connected", function () {
+  clearMocks(); spotify._reset();
+  secrets.saveSpotify({ refreshToken: undefined, accessToken: undefined, expiry: undefined, scope: undefined });
+  return t.rejects(function () { return spotify.playerToken(); }, /not connected/, 409).then(function () {
+    assert.strictEqual(jsonCalls.length, 0);
+  });
+});
+
 t.test("restore transport", function () {
   http.json = realJson;
   http.request = realRequest;

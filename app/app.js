@@ -782,12 +782,19 @@
     setIdleMs();
     buildGrid(tileList());
     tick(); weather(); alerts(); air(); market(); calendar(); feed();
+    startPlayer();                                             // Spotify may just have been signed in
     if (isBrief() && !inMorning() && Date.now() >= briefUntil) goIdle();
     if (!isIdle() && !isBrief()) wake();
   }
   function onStatus(up) {
     setHint(up ? "" : "Setup helper not running");
-    if (up) { calendar(); feed(); dailyOrder(); }
+    if (up) { calendar(); feed(); dailyOrder(); startPlayer(); }
+  }
+  // This TV as a Spotify device (player.js): online whenever Spotify is signed in, so it can be
+  // chosen from a phone. Music that starts here opens the Music view, where it is shown.
+  function startPlayer() {
+    if (Music.demo || !(CONFIG.music && CONFIG.music.tile) || !Settings.serviceUp()) return;
+    Player.start({ onPlay: function () { if (!Music.isOpen() && !overlay) { wake(); openMusic(); } } });
   }
 
   setIdleMs();

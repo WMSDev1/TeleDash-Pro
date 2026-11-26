@@ -89,7 +89,8 @@ Step by step, with every option explained: [docs/SETUP.md](docs/SETUP.md).
 - **No account, no tracking, no analytics.** TeleDash Pro has no server of its own.
 - **Your settings and keys stay on your TV**, in a folder only the TV's root user can read.
   Keys and calendar addresses you enter are never shown again, never sent to the dashboard or
-  your phone, and never written to logs.
+  your phone, and never written to logs. (One exception if you connect Spotify: the dashboard on
+  the TV gets a one-hour Spotify token so the TV itself can play. See [SECURITY.md](SECURITY.md).)
 - **Your location is rounded** to about 10 km (one decimal place) before it is saved.
 - **The TV talks directly to the services you turn on**: a weather service (Open-Meteo), the
   US National Weather Service for warnings, a public stock-quote service for the market

@@ -20,6 +20,8 @@ var spotify = require("./lib/spotify");
 var feed = require("./lib/feed");
 var tv = require("./lib/tv");
 var updates = require("./lib/updates");
+var inspector = require("./lib/inspector");
+var sound = require("./lib/sound");
 var client = require("./lib/http");
 
 var WWW = path.join(__dirname, "www");
@@ -192,6 +194,26 @@ function usageLog() {
 
 var CORS = { "Access-Control-Allow-Origin": "*" };
 
+// One line of text per 1/30 s of sound (lib/sound.js), for as long as the app keeps the request
+// open. Lines the app is too busy to take are dropped, never queued: old sound is of no use.
+function soundStream(req, res) {
+  var open = true, blocked = false, started = false;
+  var stop = sound.subscribe(function (line) {
+    if (!open || !started || blocked) return;
+    blocked = !res.write(line + "\n");
+  }, function () { if (open) { open = false; res.end(); } });
+  if (!stop) return json(res, 404, { error: "This TV does not offer its sound to apps, so the visualizers cannot follow the music." }, CORS);
+  res.writeHead(200, Object.assign({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }, CORS));
+  if (res.socket && res.socket.setNoDelay) res.socket.setNoDelay(true);
+  started = true;
+  res.on("drain", function () { blocked = false; });
+  // The app closed the request (it left the Music view): stop listening. Not the request's own
+  // "close" event, which newer Node versions send as soon as the request has been read.
+  function gone() { if (open) { open = false; stop(); } }
+  req.on("aborted", gone);
+  res.on("close", gone);
+}
+
 function local(req, res, route, query) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, Object.assign({ "Access-Control-Allow-Methods": "GET, POST", "Access-Control-Allow-Headers": "Content-Type, X-TeleDash-Local", "Access-Control-Max-Age": "600" }, CORS));
@@ -255,6 +277,17 @@ function local(req, res, route, query) {
       return r.settings.music;
     }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
   }
+  // Playing on the TV itself (CONTRACT.md "Playing on the TV"): a token for Spotify's player in
+  // the dashboard, the repair that player needs on this TV's browser engine, and the sound the TV
+  // is playing, measured for the visualizers.
+  if (key === "GET /api/local/music/token") {
+    return Promise.resolve().then(function () { return spotify.playerToken(); })
+      .then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  if (key === "POST /api/local/music/player") {
+    return inspector.fixPlayer(config.appId).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  if (key === "GET /api/local/music/sound") return soundStream(req, res);
   if (key === "GET /api/local/music/list") {
     return Promise.resolve().then(function () {
       var kind = query.get("kind");

@@ -4,7 +4,9 @@
 // caps a development-mode app at five users, so no client can be built into the package.
 // Spotify sends the phone back through the project's GitHub Pages site (<pagesBase>/oauth/), the
 // same return page Google uses; the server tells the two apart by the state's nonce (owns()).
-// Tokens stay in secrets.json: the dashboard only ever sees the normalised results below.
+// The refresh token never leaves secrets.json. The dashboard sees the normalised results below,
+// and one thing more: a short-lived access token for Spotify's own player (playerToken), which
+// cannot work without one.
 var util = require("./util");
 var http = require("./http");
 var secrets = require("./secrets");
@@ -15,7 +17,10 @@ var TOKEN = "https://accounts.spotify.com/api/token";
 var API = "https://api.spotify.com/v1";
 var SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing " +
   "user-library-read user-library-modify playlist-read-private playlist-read-collaborative " +
-  "user-read-recently-played";
+  "user-read-recently-played streaming user-read-email user-read-private";
+// The last three are what Spotify's player in the dashboard needs. Spotify asks for the email and
+// profile permissions alongside "streaming"; TeleDash Pro itself never reads either.
+var PLAYER_SCOPES = ["streaming", "user-read-email", "user-read-private"];
 var STATE_MS = 10 * 60 * 1000;
 var STATE_CACHE_MS = 1000;
 
@@ -118,7 +123,8 @@ function finish(query, pagesBase) {
     if (!t.refresh_token) throw util.httpError(502, "Spotify did not grant lasting access. Try signing in again.");
     secrets.saveSpotify({
       refreshToken: t.refresh_token, accessToken: t.access_token,
-      expiry: Date.now() + (Number(t.expires_in) || 3600) * 1000
+      expiry: Date.now() + (Number(t.expires_in) || 3600) * 1000,
+      scope: typeof t.scope === "string" ? t.scope : ""
     });
     settings.save({ music: { tile: true } });
     clearStateCache();
@@ -137,6 +143,10 @@ function refresh(sp) {
   }).then(function (t) {
     var fields = { accessToken: t.access_token, expiry: Date.now() + (Number(t.expires_in) || 3600) * 1000 };
     if (t.refresh_token) fields.refreshToken = t.refresh_token;
+    // Which permissions the sign-in carries. Spotify repeats them here; a sign-in from before
+    // they were recorded learns them on its first refresh.
+    if (typeof t.scope === "string") fields.scope = t.scope;
+    else if (typeof sp.scope !== "string") fields.scope = "";
     secrets.saveSpotify(fields);
     return t.access_token;
   }, function (e) {
@@ -162,6 +172,26 @@ function getAccessToken(force) {
 
 // A current access token, refreshed when it is within a minute of expiring.
 function accessToken() { return getAccessToken(false); }
+
+function canPlayHere(scope) {
+  var have = String(scope || "").split(/\s+/);
+  return PLAYER_SCOPES.every(function (s) { return have.indexOf(s) >= 0; });
+}
+
+// For Spotify's player in the dashboard (CONTRACT.md "Playing on the TV"): { token, expires }.
+// The token is the ordinary access token, good for at most an hour. It is handed out only when
+// the sign-in carries the player's permissions; a sign-in made before 1.2.0 must be made again.
+function playerToken() {
+  var sp = secrets.load().spotify || {};
+  if (!sp.refreshToken) return Promise.reject(util.httpError(409, "Spotify is not connected. Sign in on the setup page."));
+  return getAccessToken(typeof sp.scope !== "string").then(function (token) {
+    var now = secrets.load().spotify || {};
+    if (!canPlayHere(now.scope)) {
+      throw util.httpError(409, "To play music on this TV itself, sign in to Spotify again on the setup page.");
+    }
+    return { token: token, expires: now.expiry };
+  });
+}
 
 // ---------- Web API ----------
 
@@ -598,6 +628,7 @@ module.exports = {
   owns: owns,
   finish: finish,
   accessToken: accessToken,
+  playerToken: playerToken,
   state: state,
   command: command,
   list: list,

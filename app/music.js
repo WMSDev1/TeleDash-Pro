@@ -1,5 +1,7 @@
 // The Music view: Spotify full screen (CONTRACT.md "Music view" and "Spotify"). The helper does
 // all the talking to Spotify; this file only draws what it reports and sends button presses back.
+// When this TV is itself a Spotify device (player.js), presses made while nothing is playing start
+// the music here, and the visualizers follow the TV's own sound (the helper's sound stream).
 //   Music.init({ onClose })   once, after the page has loaded
 //   Music.open() / close()    show or leave the view (the music itself keeps playing)
 //   Music.isOpen()            the view is on screen
@@ -48,6 +50,17 @@ var Music = (function () {
     return true;                                               // every key: the first press only wakes it
   }
   function artOk(u) { return typeof u === "string" && /^(https:\/\/|data:image\/)/.test(u); }
+  // A play request made while Spotify is active nowhere needs to be told where to play: here,
+  // when this TV is a Spotify device (tv is its device id, "" when it is not one).
+  function aim(body, tv, state) {
+    if (body && body["do"] === "play" && !body.deviceId && tv && !(state && state.active)) body.deviceId = tv;
+    return body;
+  }
+  // What to say under "Nothing is playing". why: the reason this TV cannot play, when there is one.
+  function idleHint(tv, why) {
+    if (tv) return "Press OK to play on this TV, or Up for the library.";
+    return (why ? why + " " : "") + "Start Spotify on a phone or speaker, or press Up for the library and pick a device.";
+  }
   // Options step through a short list of values. A value set elsewhere (the phone allows any
   // number) moves on to the next larger one in the list.
   function nextChoice(values, cur) {
@@ -174,6 +187,10 @@ var Music = (function () {
   var faded = false, lastTouch = 0, focus = 3, btns = [], lib = null, note = "";
   var E = {};
   var V = typeof Viz !== "undefined" ? Viz : null;               // the visualizers (viz.js)
+  var P = typeof Player !== "undefined" ? Player : null;         // this TV as a Spotify device (player.js)
+  var stopSound = null, soundTimer = null, noSound = false;
+  // This TV's Spotify device id, once its player is ready ("" otherwise).
+  function here() { return P && !demo ? P.id() : ""; }
 
   function $(id) { return document.getElementById(id); }
   function el(cls, text) { var e = document.createElement("div"); e.className = cls; if (text != null) e.textContent = text; return e; }
@@ -209,6 +226,7 @@ var Music = (function () {
       return b;
     });
     document.addEventListener("mousemove", function () { if (shown) touch(); });
+    document.addEventListener("visibilitychange", function () { if (document.hidden) deaf(); else listen(); });
   }
   function setFocus(i) {
     if (btns[focus]) btns[focus].classList.remove("focus");
@@ -227,7 +245,7 @@ var Music = (function () {
     } else if (t) { title = t.title; sub = t.artist; album = t.album; }
     else if (st) {
       title = "Nothing is playing";
-      if (!msg) msg = "Start Spotify on a phone or speaker, or press Up for the library and pick a device.";
+      if (!msg) msg = idleHint(here(), P && !demo && P.status() === "failed" ? P.why() : "");
     } else if (!msg) title = "Connecting to Spotify…";
     var sk = skin(), retro = sk === "retro";
     E.music.className = sk === "modern" ? "" : sk;
@@ -350,6 +368,7 @@ var Music = (function () {
     });
   }
   function send(body, optimistic) {
+    aim(body, here(), st);
     if (optimistic && st) { optimistic(st); render(); }
     seq++;                                                      // drop any read that started before this press
     clearTimeout(pollTimer);
@@ -365,14 +384,15 @@ var Music = (function () {
     if (!V) return "";
     var n = "Visualizer: " + V.name();
     if (V.name() === "Off" || V.live()) return n;
-    return n + (V.computer ? " (made-up beat: press C to share a tab's sound, M for the microphone)" : " (not following the music yet)");
+    return n + (V.computer ? " (made-up beat: press C to share a tab's sound, M for the microphone)" : " (made-up beat: it follows music playing on this TV)");
   }
   function act(id) {
     var s = st || {};
     if (id === "viz") { if (V) { V.next(); say(vizNote()); } return; }
     if (id === "library") { openLib(); return; }
     if (s.connected === false || !st) return;
-    if (id === "toggle") send(s.playing ? { "do": "pause" } : { "do": "play" }, function (x) { freeze(x); x.playing = !x.playing; });
+    if (id === "toggle" && !s.active && here()) send({ "do": "transfer", deviceId: here(), play: true });   // nothing anywhere: play here
+    else if (id === "toggle") send(s.playing ? { "do": "pause" } : { "do": "play" }, function (x) { freeze(x); x.playing = !x.playing; });
     else if (id === "next" || id === "previous") send({ "do": id });
     else if (id === "back" || id === "fwd") {
       if (!s.track) return;
@@ -561,6 +581,21 @@ var Music = (function () {
     E.mover.style.transform = "translate(" + Math.round(Math.random() * 120 - 60) + "px," + Math.round(Math.random() * 60 - 50) + "px)";
   }
 
+  // ---- the TV's own sound, for the visualizers (only while the view is on screen) ----
+  function listen() {
+    clearTimeout(soundTimer);
+    if (demo || !V || noSound || stopSound || !shown || document.hidden) return;
+    stopSound = Settings.sound(V.sound, function (status) {
+      stopSound = null;
+      if (status === 404) { noSound = true; return; }             // this TV has none to offer: do not ask again
+      if (shown) soundTimer = setTimeout(listen, 5000);
+    });
+  }
+  function deaf() {
+    clearTimeout(soundTimer);
+    if (stopSound) { stopSound(); stopSound = null; }
+  }
+
   function key(k) {
     // Previewing on a computer: C shares a tab's (or the screen's) sound with the visualizer, M the microphone.
     if (V && V.computer && (k === 67 || k === 77)) {
@@ -580,6 +615,8 @@ var Music = (function () {
     document.body.classList.add("music");
     setFocus(ctl("toggle"));
     render(); touch(); poll();
+    if (P && !demo) P.start();                                  // a no-op once it is running
+    listen();
     if (V) V.start($("mviz"));
     tickTimer = setInterval(tick, 500);
     driftTimer = setInterval(drift, DRIFT_MS);
@@ -590,6 +627,7 @@ var Music = (function () {
     [pollTimer, fadeTimer, msgTimer].forEach(clearTimeout);
     clearInterval(tickTimer); clearInterval(driftTimer);
     if (lib) closeLib();
+    deaf();
     if (V) V.stop();
     document.body.classList.remove("music");
     if (hooks.onClose) hooks.onClose();
@@ -601,7 +639,7 @@ var Music = (function () {
     isOpen: function () { return shown; },
     playing: function () { return !!(shown && st && st.playing); },
     demo: demo,
-    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, _nextChoice: nextChoice, _optLabel: optLabel, K: K
+    _fmt: fmt, _step: step, _playRequest: playRequest, _revealOnly: revealOnly, _artOk: artOk, _clockDigits: clockDigits, _nextChoice: nextChoice, _optLabel: optLabel, _aim: aim, _idleHint: idleHint, K: K
   };
 })();
 if (typeof module !== "undefined") module.exports = Music;

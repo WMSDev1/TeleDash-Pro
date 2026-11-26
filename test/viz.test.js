@@ -64,4 +64,29 @@ assert.ok(Array.prototype.some.call(raw, function (v) { return v > 0.2; }));
 V._synth(raw, wave, 12.3, false);
 assert.ok(Array.prototype.every.call(raw, function (v) { return v === 0; }) && Array.prototype.every.call(wave, function (v) { return v === 0; }));
 
+// The helper's sound stream: one line is 64 loudness bytes then 256 waveform bytes, as hex.
+(function () {
+  const levels = new Float32Array(V.BANDS), wave = new Float32Array(V.WAVE);
+  const bytes = Buffer.alloc(V.BANDS + V.WAVE, 128);
+  bytes[0] = 0; bytes[1] = 255; bytes[63] = 51;
+  bytes[V.BANDS] = 255; bytes[V.BANDS + 1] = 1; bytes[V.BANDS + 255] = 128;
+  assert.strictEqual(V._readLine(bytes.toString("hex"), levels, wave), "loud");
+  assert.strictEqual(levels[0], 0);
+  assert.strictEqual(levels[1], 1);
+  assert.ok(Math.abs(levels[63] - 0.2) < 1e-6);
+  assert.strictEqual(wave[0], 1);
+  assert.strictEqual(wave[1], -1);
+  assert.strictEqual(wave[255], 0);
+  // Silence empties both; anything else is ignored and leaves the last picture alone.
+  assert.strictEqual(V._readLine("-", levels, wave), "silent");
+  assert.ok(Array.prototype.every.call(levels, function (v) { return v === 0; }) && Array.prototype.every.call(wave, function (v) { return v === 0; }));
+  levels[3] = 0.5;
+  ["", "abc", bytes.toString("hex").slice(2), bytes.toString("hex") + "00", bytes.toString("hex").replace(/^../, "zz"), null, 7].forEach(function (bad) {
+    assert.strictEqual(V._readLine(bad, levels, wave), "", String(bad).slice(0, 12));
+  });
+  assert.strictEqual(levels[3], 0.5);
+  assert.strictEqual(typeof V.sound, "function");
+  V.sound("not a line");                                        // never throws
+})();
+
 console.log("viz checks passed");

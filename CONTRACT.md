@@ -13,8 +13,8 @@ projects, or passwords (not even well-known defaults). Defaults are generic.
 
 | Part | Runs on | Language level |
 |---|---|---|
-| `app/` (web app) | LG webOS 6 browser engine, Chromium ~79 | ES5 only: `var`, `function`, no arrow functions, no template literals, no `let/const`, no Promise-only APIs without fallback, no `fetch` (use `XMLHttpRequest`), no CSS flex `gap` |
-| `service/` (helper server) | Node.js on the TV (Assumed v12; may be older — do not use anything newer than Node 12: no `??`, no `?.`, no `fetch`, no `fs/promises`, no top-level await) | CommonJS, **zero dependencies** (built-in modules only) |
+| `app/` (web app) | LG webOS 6 browser engine, Chromium ~79 | ES5 only: `var`, `function`, no arrow functions, no template literals, no `let/const`, no Promise-only APIs without fallback, no `fetch` (use `XMLHttpRequest`; the one exception is the sound stream in "Playing on the TV", which `XMLHttpRequest` could only read by holding all of it in memory, and which goes without where streaming `fetch` is missing), no CSS flex `gap` |
+| `service/` (helper server) | Node.js on the TV (measured: v8.12 on a 2021 OLED, so write for Node 8: no `??`, no `?.`, no `fetch`, no `fs/promises`, no top-level await, no global `URL`, no `{ recursive: true }`) | CommonJS, **zero dependencies** (built-in modules only) |
 | `kiosk/` (shell) | TV's BusyBox `sh` as root | POSIX sh, BusyBox applets only (no bash-isms, no `[[`, no arrays) |
 | `site/` (GitHub Pages) | phone and desktop browsers | plain HTML/JS, no build step |
 | `scripts/`, `test/`, CI | developer Mac / Linux CI | bash, Node 22 in CI |
@@ -33,7 +33,7 @@ paths under `/home/root`) degrades gracefully when absent.
 | Data dir on TV | `/home/root/teledash/` (mode 700). Override with env `TELEDASH_DATA` (dev runs use `./.data/`) |
 | Dev-run switches | env `TELEDASH_PAGES_BASE` overrides `pagesBase` (a run from the repository can borrow a published return page for sign-in). In a browser with no TV service bridge the app reads the helper's key from `localStorage` key `teledash.devkey` instead of the root shell; on a TV that path is never taken |
 | Settings file | `$DATA/settings.json` (non-secret, mode 600) |
-| Secrets file | `$DATA/secrets.json` (mode 600). Never sent to any client, never logged |
+| Secrets file | `$DATA/secrets.json` (mode 600). Never logged, and never sent to any client, with one exception: the dashboard on the TV is given Spotify's current access token (good for at most an hour; never the refresh token) because Spotify's player cannot run without one. See "Playing on the TV" |
 | Local key | `$DATA/local.token` (mode 600; 32+ random URL-safe chars, created by the service at start and kept across restarts). The app reads it as root through Homebrew Channel and sends it on every `/api/local/*` call |
 | Kiosk config | `$DATA/kiosk.conf` (shell-sourceable, written by the service: `ENABLED=0|1`, `DELAY=<seconds>`) |
 | Usage log | `$DATA/usage.log` — lines `"<unix seconds> <appId>"`, plus `"<unix> boot"` |
@@ -123,12 +123,14 @@ Packaged with `ares-package --no-minify build/stage -o build`.
   through them; the choice is kept on the TV in `localStorage` key `teledash.viz` (it is not a
   setting). Each one draws from a frame of sound: `bands`, 64 numbers from 0 to 1 covering 40 Hz to
   16 kHz in equal musical steps (bass first), and `wave`, 256 numbers from -1 to 1. A frame comes
-  from `Viz.feed({ bands, wave })`; with none in the last 0.6 s the visualizers move to a made-up
-  beat while Spotify plays and say so. What feeds real sound on a TV is not decided yet. In a
-  browser on a computer, C shares a tab's or the screen's sound and M the microphone.
+  from the TV's own sound (`Viz.sound(line)`, one line of the helper's sound stream; see "Playing
+  on the TV") or from `Viz.feed({ bands, wave })`. With neither in the last 0.6 s, or after 10 s of
+  silence from the TV (the music is playing on another device), the visualizers move to a made-up
+  beat while Spotify plays and say so. In a browser on a computer, C shares a tab's or the screen's
+  sound and M the microphone.
 
 Secrets (`secrets.json`), write-only from the setup page:
-`{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "spotify": { "clientId", "refreshToken", "accessToken", "expiry" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client
+`{ "icalUrl", "google": { "clientId"?, "clientSecret"?, "refreshToken", "accessToken", "expiry", "tokenClientId" }, "spotify": { "clientId", "refreshToken", "accessToken", "expiry", "scope" }, "feedToken", "feedTokenOrigin" }` — `tokenClientId` is the client that issued the tokens; refreshes use that client
 
 ## Service HTTP API (port 8770)
 
@@ -157,6 +159,9 @@ The web app calls these at `http://127.0.0.1:8770`; it reads the key at start, a
 | `GET /api/local/music` | what Spotify is playing (see "Spotify"): `{ "connected": false }` when not signed in, else `{ "connected": true, "active", "playing", "progressMs", "durationMs", "at", "shuffle", "repeat", "device", "track" }`. Cached ≤1 s |
 | `POST /api/local/music` | body `{ "do": "<command>", … }` (see "Spotify") → `{ "ok": true }`. Unknown command or bad field → 400; not signed in or no active device → 409 |
 | `POST /api/local/music/settings` | Body: any of `{ "fadeSeconds", "fadeTo", "skin" }`, validated as in the settings schema. Saves them and answers with the whole `music` settings object. Any other key (including `tile`) → 400 |
+| `GET /api/local/music/token` | `{ "token", "expires" }`: Spotify's current access token and when it runs out (Unix milliseconds), for Spotify's player in the dashboard (see "Playing on the TV"). Not signed in, or signed in without the player's permissions → 409 with what to do |
+| `POST /api/local/music/player` | Repairs Spotify's player in the dashboard page (see "Playing on the TV") → `{ "available": true, "fixed": <number of player frames carrying the repair> }`, or `{ "available": false, "reason": "closed" \| "no page" \| "busy" \| "timeout" \| "refused" }` when the TV's inspector cannot be used. Always 200 |
+| `GET /api/local/music/sound` | `text/plain`, and it stays open: one line per 1/30 s of the sound the TV is playing, until the app closes the request (see "Playing on the TV"). 404 when the TV offers no sound to measure |
 | `GET /api/local/music/list?kind=<kind>&id=<id>&offset=<n>&q=<text>` | `{ "items": [ { "kind", "uri", "id", "title", "subtitle", "art", "active"? } ], "next": <offset> or null }` (see "Spotify"). Unknown kind → 400 |
 
 ### Setup endpoints — from a phone on the same network
@@ -213,7 +218,11 @@ owner creates their own app at developer.spotify.com and pastes its client ID on
    `https://accounts.spotify.com/authorize?client_id=…&response_type=code&redirect_uri=<pagesBase>/oauth/&scope=<scopes>&state=…&code_challenge=…&code_challenge_method=S256`.
    Scopes, space-separated, only what is used: `user-read-playback-state user-modify-playback-state
    user-read-currently-playing user-library-read user-library-modify playlist-read-private
-   playlist-read-collaborative user-read-recently-played`.
+   playlist-read-collaborative user-read-recently-played streaming user-read-email
+   user-read-private`. The last three are for Spotify's player ("Playing on the TV"): Spotify
+   requires the email and profile permissions alongside `streaming`, and TeleDash Pro reads neither.
+   The scopes Spotify grants are kept as `spotify.scope` (and learned from the next refresh by a
+   sign-in made before they were kept).
 2. Spotify returns the phone to the same static `oauth/` page as Google (the owner registers
    `<pagesBase>/oauth/` as the app's redirect URI; Spotify requires HTTPS there). The page forwards
    to `http://<TV>:8770/oauth/return` unchanged.
@@ -276,6 +285,43 @@ device is active…"; 403 `PREMIUM_REQUIRED` becomes 403 "Spotify Premium is nee
 
 Item: `{ "kind", "uri", "id", "title", "subtitle", "art" }`: `subtitle` is the artists (track,
 album), the owner and track count (playlist), or the device type; `uri` is `""` for a device.
+
+### Playing on the TV
+
+The TV is itself a Spotify device named `TeleDash Pro`, so its own speakers play the music and it
+can be chosen in any Spotify app. Three parts, each of which can be missing without harming the
+rest of the Music view (it then steers other devices, as a remote control):
+
+**The player** (`app/player.js`). When Spotify is signed in and the helper answers, the dashboard
+loads Spotify's Web Playback SDK (`https://sdk.scdn.co/spotify-player.js`, which runs its player
+in a frame from `sdk.scdn.co`), gives it tokens from `GET /api/local/music/token` whenever it asks,
+and connects. This is the one place a token reaches the dashboard: the access token only, good
+for at most an hour, over the loopback address, to a caller holding the local key. While Spotify
+is active nowhere, Play and a chosen song are sent with this TV's device id, so they start here.
+Music starting on the TV opens the Music view.
+
+**The repair** (`service/lib/inspector.js`). Before each song Spotify's player asks for the song's
+licence with `fetch(…, { signal })`, where `signal` is not a native `AbortSignal`. Chromium 79
+refuses that call ("member signal is not of type AbortSignal"), no licence is requested, and the
+song stops after its unprotected first ten seconds. A page cannot reach into another site's frame,
+so the helper does it through the TV's own web inspector (Chromium's DevTools protocol on
+`127.0.0.1:9998`, open on TVs with developer mode on): it finds this app's page, and in the frame
+whose `location.host` is `sdk.scdn.co`, and in no other, it wraps `window.fetch` so that a
+non-native `signal` is replaced by a native one that is cancelled when the original is. Nothing
+else about the player is changed and nothing is read from it. On a TV the player is offered only
+after the repair is confirmed (`fixed` ≥ 1), before connecting and again when Spotify reports it
+ready; where the inspector is closed the TV is not offered as a device. A browser on a computer
+needs no repair.
+
+**The sound** (`service/lib/sound.js`). A webOS app cannot read its own sound. The TV's mixer
+offers a copy of what it sends to the speakers as an ALSA recording device named `MixerCapture`;
+the helper finds it by that name in `/proc/asound/pcm` and records from no other device (never a
+microphone). It records with `arecord` as 32-bit stereo at 48 kHz (what the device delivers
+whatever is asked for), only while the Music view holds `GET /api/local/music/sound` open. Each
+line is `-` for silence, otherwise 640 hex characters: 64 bytes of loudness (0–255 across −90 dB
+to −18 dB, in the visualizers' 64 bands, lifted by up to 29 dB so quiet playback still fills the
+picture), then 256 bytes of waveform (128 is the middle). The sound itself is never stored and
+never leaves the helper; the lines go only to the dashboard on the same TV.
 
 ## Data feed
 

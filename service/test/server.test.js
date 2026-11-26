@@ -499,6 +499,80 @@ t.test("music options: the TV app changes the look and the fade, and nothing els
   });
 });
 
+t.test("playing on the TV: token, repair and sound routes", function () {
+  var inspector = require("../lib/inspector"), sound = require("../lib/sound");
+  var realFix = inspector.fixPlayer, realSubscribe = sound.subscribe, fixedFor = [], stopped = 0;
+  function restore() { inspector.fixPlayer = realFix; sound.subscribe = realSubscribe; unstub(); }
+  stub({ playerToken: function () { calls.push(["playerToken"]); return Promise.resolve({ token: "tok", expires: 123 }); } });
+  inspector.fixPlayer = function (appId) { fixedFor.push(appId); return Promise.resolve({ available: true, fixed: 1 }); };
+  sound.subscribe = function (onLine, onEnd) {
+    setTimeout(function () { onLine("aa"); onLine("-"); onEnd(); }, 20);
+    return function () { stopped++; };
+  };
+  return req("GET", "/api/local/music/token").then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { token: "tok", expires: 123 });
+    assert.strictEqual(r.headers["cache-control"], "no-store");
+    return req("POST", "/api/local/music/player", { body: {} });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { available: true, fixed: 1 });
+    assert.deepStrictEqual(fixedFor, [config.appId], "only ever this app's own page");
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.text, "aa\n-\n", "one line of text per measurement, until the recorder stops");
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    // A stream that outlives the request's arrival by a while: every line still gets through.
+    sound.subscribe = function (onLine, onEnd) {
+      var n = 0, timer = setInterval(function () { onLine("line" + (++n)); if (n === 12) { clearInterval(timer); onEnd(); } }, 25);
+      return function () { stopped++; clearInterval(timer); };
+    };
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.text.split("\n").filter(Boolean).length, 12, r.text);
+    assert.strictEqual(stopped, 0, "the recorder ended it, not the app");
+    // The app leaves the Music view: it closes the request, and the helper stops listening.
+    sound.subscribe = function (onLine) {
+      var timer = setInterval(function () { onLine("-"); }, 25);
+      return function () { stopped++; clearInterval(timer); };
+    };
+    return new Promise(function (resolve, reject) {
+      var r = http.request({ host: "127.0.0.1", port: port, path: "/api/local/music/sound", headers: { "X-TeleDash-Local": localKey() } }, function (res) {
+        res.once("data", function () { r.abort(); setTimeout(resolve, 150); });
+        res.on("error", function () {});
+      });
+      r.on("error", function () {});
+      r.end();
+      setTimeout(function () { reject(new Error("the sound stream never started")); }, 3000);
+    });
+  }).then(function () {
+    assert.strictEqual(stopped, 1, "closing the request stops the listening");
+    sound.subscribe = function () { return null; };             // a TV (or a computer) with no sound to offer
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 404);
+    assert.ok(/does not offer its sound/.test(r.json.error));
+    stub({ playerToken: function () { return Promise.reject(util.httpError(409, "To play music on this TV itself, sign in to Spotify again on the setup page.")); } });
+    return req("GET", "/api/local/music/token");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 409);
+    assert.ok(/sign in to Spotify again/.test(r.json.error));
+    // None of the three is for anyone but the dashboard on this TV.
+    fixedFor = []; calls = [];
+    sound.subscribe = function () { calls.push(["subscribe"]); return function () {}; };
+    return Promise.all([
+      req("GET", "/api/local/music/token", { noKey: true }),
+      req("POST", "/api/local/music/player", { noKey: true, body: {} }),
+      req("GET", "/api/local/music/sound", { noKey: true }),
+      req("GET", "/api/local/music/token", { headers: { Host: "rebind.example:" + port } })
+    ]);
+  }).then(function (rs) {
+    assert.deepStrictEqual(rs.map(function (r) { return r.status; }), [403, 403, 403, 403]);
+    assert.deepStrictEqual([fixedFor, calls], [[], []]);
+  }).then(restore, function (e) { restore(); throw e; });
+});
+
 t.test("spotify: local music routes need the key and loopback", function () {
   stub({ state: function () { calls.push(["state"]); return Promise.resolve({ connected: true }); } });
   return req("GET", "/api/local/music", { noKey: true }).then(function (r) {

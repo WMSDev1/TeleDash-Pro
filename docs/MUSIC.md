@@ -1,11 +1,13 @@
 # Music (Spotify)
 
 The **Music** tile opens Spotify full screen on the TV: what is playing, its artwork, a progress
-bar, a row of controls, and your library. TeleDash Pro is a remote control here: the sound comes
-from whichever Spotify device is playing (a phone, a speaker, a computer), and the Music view
-shows and steers it.
+bar, a row of controls, your library, and visualizers that move with the music.
 
-You need **Spotify Premium**. Spotify only lets Premium accounts control playback from another
+The TV is a Spotify device of its own, called **TeleDash Pro**. Choose it in Spotify on your
+phone, or press Play on the TV, and the music comes out of the TV. The Music view also shows and
+steers whatever is playing on your other Spotify devices (a phone, a speaker, a computer).
+
+You need **Spotify Premium**. Spotify only lets Premium accounts play through or control another
 app, and only Premium accounts may create the developer app described below.
 
 ## Why you create your own Spotify app
@@ -22,7 +24,8 @@ means your sign-in goes through an app that only you control.
 2. In another tab, open `developer.spotify.com/dashboard` and sign in with your Spotify account.
 3. Choose **Create app**. The name and description can be anything.
 4. Under **Redirect URIs**, paste the Redirect URI from the setup page, exactly as shown.
-5. Under the question about which APIs you plan to use, tick **Web API**. Save.
+5. Under the question about which APIs you plan to use, tick **Web API** and **Web Playback
+   SDK**. Save.
 6. Copy the app's **Client ID** (32 letters and digits). There is also a client secret:
    TeleDash Pro does not need it and never asks for it.
 7. Back on the setup page, paste the Client ID, tap **Save client ID**, then **Sign in with
@@ -32,9 +35,14 @@ means your sign-in goes through an app that only you control.
 
 The **Music** tile now appears on the TV, just before **Set up**.
 
-What TeleDash Pro asks Spotify for: to see and control playback, to read your library and
-playlists and your recently played songs, and to save or remove a song from your Liked Songs
-(the heart button). Nothing else.
+What TeleDash Pro asks Spotify for: to see and control playback, to play music on the TV, to
+read your library and playlists and your recently played songs, and to save or remove a song from
+your Liked Songs (the heart button). Spotify's sign-in page also lists your email address and
+account details: Spotify requires those two permissions of any app that plays music, and TeleDash
+Pro does not read either.
+
+If you connected Spotify before version 1.2.0, sign in once more on the setup page: playing on the
+TV needs a permission the earlier sign-in did not ask for.
 
 ## On the TV
 
@@ -58,8 +66,25 @@ In the library, **OK** opens a playlist or album, or plays a song. Choosing a so
 playlist or album plays the rest of it afterwards. **Devices** lists your Spotify devices;
 choosing one moves the music there.
 
-"Nothing is playing" means Spotify has no active device. Start Spotify on a phone, speaker or
-computer, or pick one under **Devices**.
+"Nothing is playing" means Spotify is not playing anywhere. Press **OK** on Play to start on the
+TV, pick a song from the library, or start Spotify on a phone, speaker or computer.
+
+## Playing on the TV
+
+When the TV starts playing, the Music view opens by itself. To move music that is playing
+somewhere else onto the TV, choose **TeleDash Pro** under **Devices**, or in the device list of
+any Spotify app.
+
+This part depends on two things about the TV, and TeleDash Pro checks both before it offers the
+TV as a device:
+
+- Spotify's player expects a newer browser than the TV has, and on its own would stop every song
+  after ten seconds. The helper repairs that on your TV each time the player starts, through the
+  TV's built-in developer tools. Those are available on TVs set up with Homebrew Channel in the
+  usual way. Where they are not, the Music view says so and works as a remote control for your
+  other devices.
+- Spotify can change its player at any time. If playing on the TV stops working after such a
+  change, everything else in the Music view carries on.
 
 ## Visualizers
 
@@ -67,9 +92,12 @@ Behind the player there is a visualizer. The button with four bars, next to the 
 steps through them: spectrum bars, oscilloscope, radial, particles, plasma, and off. They take
 their colours from the album artwork (the retro bars keep their green, yellow and red).
 
-**On the TV they do not follow the music yet.** They move to a made-up beat while Spotify is
-playing, and the player says so when you switch. Getting the real sound to them on a TV is still
-being worked on.
+**They move with the music when the TV is the one playing.** The helper measures the sound on its
+way to the TV's speakers (the TV's own mix, not a microphone) thirty times a second, while the
+Music view is open. The sound itself is never stored and never leaves the TV.
+
+When the music is playing on another device, the TV has no sound to measure, so the visualizers
+move to a made-up beat instead, and the player says so when you switch.
 
 ## Fade, and the look
 
@@ -100,6 +128,12 @@ apps**, and remove your app; or delete the app in the developer dashboard.
   you change your password or remove the app's access, and a developer app's sign-in also has a
   fixed lifetime (the app's page in the developer dashboard shows it, for example 180 days).
 - **"Spotify Premium is needed"**: the account lost Premium.
+- **"To play music on this TV itself, sign in to Spotify again"**: the sign-in was made before
+  version 1.2.0. Sign in once more on the setup page.
+- **"This TV cannot play Spotify itself"**: the repair described under "Playing on the TV" could
+  not be made. Music still steers your other devices.
+- **A song stops after about ten seconds on the TV**: leave the Music view and open it again,
+  which repeats the repair, then start the song again.
 - **Sign-in is not offered**: development builds have no site for Spotify to return to. Install
   a release build from Homebrew Channel.
 - **"INVALID_CLIENT: Invalid redirect URI"** on Spotify's page: the Redirect URI in your

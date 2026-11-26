@@ -56,5 +56,17 @@ assert.deepStrictEqual(M._clockDigits(754000), [1, 2, 3, 4]);
 assert.deepStrictEqual(M._clockDigits(0), [null, 0, 0, 0]);
 assert.deepStrictEqual(M._clockDigits(9e9), [9, 9, 5, 9]);
 
+// When Spotify is active nowhere, a play request is aimed at this TV (if it is a Spotify device).
+const nowhere = { connected: true, active: false }, somewhere = { connected: true, active: true };
+assert.deepStrictEqual(M._aim({ do: "play", uris: ["u"] }, "tv-1", nowhere), { do: "play", uris: ["u"], deviceId: "tv-1" });
+assert.deepStrictEqual(M._aim({ do: "play" }, "tv-1", null), { do: "play", deviceId: "tv-1" });
+assert.deepStrictEqual(M._aim({ do: "play" }, "tv-1", somewhere), { do: "play" }, "music already playing somewhere stays there");
+assert.deepStrictEqual(M._aim({ do: "play" }, "", nowhere), { do: "play" }, "this TV is not a player");
+assert.deepStrictEqual(M._aim({ do: "play", deviceId: "phone" }, "tv-1", nowhere), { do: "play", deviceId: "phone" });
+assert.deepStrictEqual(M._aim({ do: "pause" }, "tv-1", nowhere), { do: "pause" }, "only play needs a place");
+assert.ok(/Press OK to play on this TV/.test(M._idleHint("tv-1", "")));
+assert.ok(/^Start Spotify on a phone or speaker/.test(M._idleHint("", "")));
+assert.ok(/^Sign in again\. Start Spotify on a phone/.test(M._idleHint("", "Sign in again.")));
+
 assert.strictEqual(typeof M._revealOnly(M.K.OK), "boolean");
 console.log("music checks passed");
