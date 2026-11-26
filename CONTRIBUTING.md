@@ -22,15 +22,17 @@ The dashboard runs in the webOS 6 browser engine (Chromium about 79). Write ES5:
 - No CSS flex `gap` (use margins).
 - No frameworks or build step; files load directly from `index.html`.
 
-### `service/` — Node 12, zero dependencies
+### `service/` — Node 8, zero dependencies
 
-The helper runs on the TV's own Node.js. Assume Node 12 (it may be older):
+The helper runs on the TV's own Node.js, which is old (8.12 on a 2021 OLED). Write for Node 8:
 
 - CommonJS (`require`), built-in modules only. No `package.json` dependencies, no `npm install`.
 - No `??`, `?.`, `fetch`, `fs/promises`, or top-level `await`.
 - It must also run on a developer computer: anything TV-only (`luna-send`, `/home/root`) should
   fail softly when missing. Use `TELEDASH_DATA=./.data` for local runs.
-- Never send secrets to any client and never log them.
+- Never send secrets to any client and never log them. The one exception is written down in
+  CONTRACT.md "Playing on the TV": Spotify's short-lived access token goes to the dashboard on
+  the TV, for Spotify's player. Do not add another without changing the contract first.
 
 ### `kiosk/` — BusyBox `sh`
 

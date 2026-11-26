@@ -54,7 +54,9 @@ module.exports = {
   appId: project.appId || "com.teledashpro.dashboard",
   name: project.name || "TeleDash Pro",
   port: port,
-  pagesBase: String(project.pagesBase || "").replace(/\/+$/, ""),
+  // TELEDASH_PAGES_BASE: a developer run (project.json has no pagesBase outside a release build)
+  // can borrow the published sign-in return page, so Google and Spotify sign-in work on a computer.
+  pagesBase: String(process.env.TELEDASH_PAGES_BASE || project.pagesBase || "").replace(/\/+$/, ""),
   googleClient: parseGoogleClient(readJson(path.join(ROOT, "google-client.json"))),
   parseGoogleClient: parseGoogleClient,
   version: String(appinfo.version || "0.0.0"),

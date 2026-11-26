@@ -143,6 +143,154 @@
   .btn { display: inline-block; font-size: 36px; padding: 18px 54px; margin-right: 28px; border-radius: 14px;
     background: #232a35; border: 2px solid #2a303a; }
   .btn.focus { border-color: #ffb300; box-shadow: 0 0 0 6px #ffb300; }
+
+  /* Music view (Music tile or yellow key): Spotify full screen. #mviz is the visualizer's canvas;
+     #mover (artwork, title, controls, library) fades and drifts so nothing sits still on the OLED.
+     Two looks share one layout: the plain one below, and #music.retro (settings.music.skin). */
+  #music { display: none; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 5; background: #000; }
+  body.music #music { display: block; }
+  body.music #top, body.music #grid, body.music #forecast, body.music #status, body.music #market, body.music #bg { display: none; }
+  #mviz { position: absolute; left: 0; top: 0; }
+  #mover { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #mwin { position: absolute; left: 100px; bottom: 80px; width: 1720px; text-shadow: 0 2px 14px rgba(0,0,0,.85); }
+  .mwbar { display: none; }
+  #mbody { display: grid; grid-template-columns: 400px 1fr; grid-column-gap: 56px; align-items: end; }
+  #mart { grid-column: 1; grid-row: 1 / span 4; width: 400px; height: 400px; border-radius: 14px; overflow: hidden; background: #171b22; }
+  #martimg { display: block; width: 100%; height: 100%; object-fit: cover; }
+  #mlcd, #mseek, #mctl, #mstat { grid-column: 2; min-width: 0; }
+  #mlcdtop { display: none; }
+  #mtitle, #martist, #malbum { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mtitle { font-size: 68px; font-weight: 300; line-height: 1.15; }
+  #mtitle span { display: inline-block; }
+  #martist { font-size: 40px; color: #d3d9e2; margin-top: 8px; }
+  #malbum { font-size: 30px; color: #8b95a3; margin-top: 6px; }
+  #mseek { display: flex; align-items: center; margin-top: 30px; }
+  #mpos, #mdur { flex: none; width: 96px; font-size: 26px; color: #8b95a3; }
+  #mdur { text-align: right; }
+  #mbar { flex: 1; height: 8px; border-radius: 4px; background: #2a303a; overflow: hidden; }
+  #mfill { height: 100%; width: 0; background: #f2f4f7; }
+  #mctl { margin-top: 18px; white-space: nowrap; height: 96px; }
+  .mbtn { display: inline-flex; align-items: center; justify-content: center; vertical-align: top; min-width: 88px; height: 88px;
+    padding: 0 16px; margin: 4px 14px 4px 0; box-sizing: border-box; border-radius: 44px; border: 2px solid #2a303a;
+    background: rgba(35,42,53,.85); color: #f2f4f7; font-size: 28px; font-weight: 600; text-shadow: none; }
+  .mbtn.focus { border-color: #ffb300; box-shadow: 0 0 0 5px #ffb300; }
+  .mbtn.on { color: #4cd07d; }
+  .mbtn.fill svg path { fill: currentColor; }
+  .mbtn.hide { display: none; }
+  #music #mctl .mbtn:last-child { margin-right: 0; }
+  .mbtn[data-one="1"]::after { content: "1"; font-size: 22px; margin-left: 2px; }
+  #mstat { margin-top: 12px; min-height: 34px; }
+  #mdev { display: block; font-size: 26px; color: #8b95a3; }
+  #mmsg { display: block; font-size: 30px; color: #ffcf66; margin-top: 8px; line-height: 1.3; }
+  #mmsg:empty { display: none; }
+  /* A short note for the colour buttons, shown without bringing the player back. */
+  #mtoast { position: absolute; left: 64px; top: 52px; max-width: 1400px; padding: 14px 26px; border-radius: 10px; background: rgba(0,0,0,.72);
+    color: #fff; font-size: 32px; opacity: 0; transition: opacity .5s ease; }
+  #mtoast.on { opacity: 1; transition: opacity .15s ease; }
+  /* Library: a panel on the right; the controls step aside while it is open. */
+  #mlib { display: none; position: absolute; right: 0; top: 0; width: 820px; height: 1080px; box-sizing: border-box;
+    padding: 56px 50px 0; background: rgba(8,10,14,.95); }
+  body.mlib #mlib { display: block; }
+  body.mlib #mwin { width: 900px; }
+  body.mlib #mctl, body.mlib #mdev { visibility: hidden; }
+  #mlib .mwbar { display: block; font-size: 46px; font-weight: 300; margin-bottom: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #mlibwin { height: 864px; overflow: hidden; }
+  #mlist { transition: transform .15s; }
+  .mrow { display: flex; align-items: center; height: 88px; margin-bottom: 8px; padding: 0 16px; box-sizing: border-box;
+    border-radius: 12px; border: 2px solid transparent; font-size: 30px; }
+  .mrow.focus { border-color: #ffb300; background: #232a35; }
+  .mrow.quiet { color: #8b95a3; }
+  .mthumb { width: 68px; height: 68px; flex: none; margin-right: 20px; border-radius: 8px; background: #232a35; object-fit: cover; }
+  .mtext { flex: 1; min-width: 0; }
+  .mt, .ms { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ms { font-size: 22px; color: #8b95a3; margin-top: 2px; }
+  #mlibfoot { font-size: 22px; color: #7d8794; margin-top: 14px; }
+
+  /* The slim look: one strip along the bottom, so the visualizer keeps the screen. */
+  #music.slim #mwin { left: 60px; bottom: 44px; width: 1800px; box-sizing: border-box; padding: 14px 22px;
+    background: rgba(10,12,16,.74); border-radius: 18px; text-shadow: none; }
+  #music.slim #mbody { grid-template-columns: 104px 430px 1fr; grid-column-gap: 22px; align-items: center; }
+  #music.slim #mart { grid-row: 1 / span 2; width: 104px; height: 104px; border-radius: 10px; }
+  #music.slim #mlcd { grid-column: 2; grid-row: 1 / span 2; }
+  #music.slim #mtitle { font-size: 34px; font-weight: 600; }
+  #music.slim #martist { font-size: 26px; margin-top: 2px; }
+  #music.slim #malbum { display: none; }
+  #music.slim #mctl { grid-column: 3; grid-row: 1; margin-top: 0; height: 68px; }
+  #music.slim .mbtn { min-width: 64px; height: 60px; margin: 4px 8px 4px 0; padding: 0 12px; font-size: 22px; border-radius: 30px; }
+  #music.slim .mbtn svg { width: 32px; height: 32px; }
+  #music.slim .mbtn.focus { box-shadow: 0 0 0 4px #ffb300; }
+  #music.slim #mseek { grid-column: 3; grid-row: 2; margin-top: 4px; }
+  #music.slim #mpos, #music.slim #mdur { width: 74px; font-size: 22px; }
+  #music.slim #mbar { height: 6px; }
+  #music.slim #mstat { grid-column: 1 / span 3; margin-top: 0; min-height: 0; }
+  #music.slim #mdev { display: none; }
+  #music.slim #mmsg { font-size: 24px; margin-top: 8px; }
+  body.mlib #music.slim #mwin { width: 1010px; }
+
+  /* The retro look: a late-90s desktop player. Silver bevelled windows, a navy title bar, a black
+     LCD with a segment clock, buttons that press in. Square corners and 3px bevels throughout. */
+  #music.retro { font-family: Tahoma, "MS Sans Serif", "Helvetica Neue", Arial, sans-serif; }
+  #music.retro #mwin, #music.retro #mlib { background: #c0c0c0; color: #000; text-shadow: none; box-sizing: border-box; padding: 9px;
+    border: 3px solid; border-color: #fff #000 #000 #fff;
+    box-shadow: inset -3px -3px 0 #808080, inset 3px 3px 0 #dfdfdf, 0 20px 70px rgba(0,0,0,.75); }
+  #music.retro #mwin { left: 50px; width: 1240px; }
+  #music.retro .mwbar { display: flex; align-items: center; justify-content: space-between; height: 54px; margin: 0;
+    padding: 0 7px 0 16px; background: linear-gradient(90deg, #000080, #1084d0); color: #fff;
+    font-size: 30px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; overflow: hidden; }
+  .mwx { display: none; }
+  #music.retro .mwx { display: flex; align-items: center; justify-content: center; flex: none; width: 46px; height: 40px;
+    background: #c0c0c0; color: #000; border: 3px solid; border-color: #fff #000 #000 #fff; box-sizing: border-box;
+    box-shadow: inset -2px -2px 0 #808080; }
+  .mwx svg { width: 26px; height: 26px; }
+  #music.retro #mbody { grid-template-columns: 300px 1fr; grid-column-gap: 16px; align-items: stretch; padding: 14px 10px 6px; }
+  #music.retro #mart { grid-row: 1; width: 300px; height: 300px; border-radius: 0; background: #000; box-sizing: border-box;
+    border: 3px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 3px 3px 0 #000; padding: 3px; }
+  #music.retro #mlcd { grid-row: 1; background: #030803; color: #3cff70; box-sizing: border-box; padding: 18px 24px 0; overflow: hidden;
+    border: 3px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 3px 3px 0 #000;
+    font-family: "Courier New", Menlo, Consolas, monospace; }
+  #music.retro #mlcdtop { display: flex; justify-content: space-between; align-items: flex-start; }
+  #mclock { display: block; }
+  #mflags span { display: block; text-align: right; font-size: 22px; font-weight: 700; letter-spacing: 4px; line-height: 34px; color: #0c3318; }
+  #mflags span.on { color: #3cff70; text-shadow: 0 0 10px rgba(60,255,112,.7); }
+  #music.retro #mtitle { font-size: 42px; font-weight: 700; line-height: 1.2; margin-top: 16px; text-overflow: clip;
+    color: #3cff70; text-shadow: 0 0 10px rgba(60,255,112,.55); }
+  #music.retro #mtitle.scroll span { padding-left: 100%; animation: mmarq 14s linear infinite; }
+  @keyframes mmarq { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  #music.retro #martist { font-size: 30px; font-weight: 700; color: #2bbf55; margin-top: 6px; }
+  #music.retro #malbum { font-size: 26px; color: #1c8a3c; margin-top: 2px; }
+  #music.retro #mseek, #music.retro #mctl, #music.retro #mstat { grid-column: 1 / span 2; }
+  #music.retro #mseek { margin-top: 14px; }
+  #music.retro #mpos, #music.retro #mdur { color: #000; font-weight: 700; }
+  #music.retro #mbar { height: 34px; border-radius: 0; background: #fff; box-sizing: border-box; padding: 3px;
+    border: 3px solid; border-color: #808080 #fff #fff #808080; box-shadow: inset 2px 2px 0 #000; }
+  #music.retro #mfill { background: repeating-linear-gradient(90deg, #000080 0, #000080 18px, transparent 18px, transparent 22px); }
+  #music.retro #mctl { margin-top: 10px; height: 82px; }
+  #music.retro .mbtn { min-width: 90px; height: 74px; margin: 4px 8px 4px 0; border-radius: 0; background: #c0c0c0; color: #000;
+    font-size: 26px; font-weight: 700; border: 3px solid; border-color: #fff #000 #000 #fff;
+    box-shadow: inset -3px -3px 0 #808080, inset 3px 3px 0 #dfdfdf; }
+  #music.retro .mbtn.on { background: #d4d4d4; color: #000080; border-color: #000 #fff #fff #000; box-shadow: inset 3px 3px 0 #808080; }
+  #music.retro .mbtn.focus { background: #000080; color: #fff; outline: 2px dotted #fff; outline-offset: -11px; }
+  #music.retro #mstat { display: flex; margin-top: 8px; min-height: 0; }
+  #music.retro #mdev, #music.retro #mmsg { display: block; box-sizing: border-box; min-height: 44px; margin: 0; padding: 6px 12px;
+    font-size: 24px; line-height: 28px; color: #000; border: 2px solid; border-color: #808080 #fff #fff #808080; }
+  #music.retro #mdev { flex: none; min-width: 300px; white-space: nowrap; }
+  #music.retro #mmsg { flex: 1; margin-left: 6px; color: #800000; font-weight: 700; }
+  #music.retro #mmsg:empty { display: block; }
+  /* The library is a second window, beside the player. */
+  #music.retro #mlib { right: 40px; top: 26px; width: 580px; height: 1028px; }
+  #music.retro .mrow { font-size: 28px; }
+  body.mlib #music.retro #mwin { width: 1240px; }
+  body.mlib #music.retro #mctl, body.mlib #music.retro #mdev { visibility: visible; }
+  #music.retro #mlibwin { margin-top: 10px; background: #000; box-sizing: content-box;
+    border: 3px solid; border-color: #808080 #fff #fff #808080; }
+  #music.retro .mrow { height: 96px; margin: 0; border: 0; border-radius: 0; color: #3cff70; font-weight: 700; }
+  #music.retro .mrow.focus { background: #000080; color: #fff; }
+  #music.retro .mrow.quiet { color: #1c8a3c; }
+  #music.retro .mthumb { border-radius: 0; background: #0c3318; }
+  #music.retro .ms { color: #1c8a3c; font-weight: 400; }
+  #music.retro .mrow.focus .ms { color: #b9c6ff; }
+  #music.retro #mlibfoot { margin-top: 8px; padding: 6px 12px; font-size: 22px; color: #000;
+    border: 2px solid; border-color: #808080 #fff #fff #808080; }
 </style>
 </head>
 <body>
@@ -168,6 +316,27 @@
   <div id="status"></div>
   <div id="market"></div>
   <div id="setup"><div id="sqr"></div><div id="stext"><div id="stitle"></div><div id="smsg"></div><div id="surl"></div><div id="scode"></div><div id="sbtns"></div><div id="sfoot"></div></div></div>
+  <div id="music">
+    <canvas id="mviz" width="1920" height="1080"></canvas>
+    <div id="mover">
+      <div id="mwin">
+        <div class="mwbar"><span id="mwtitle">Music</span><span id="mclose" class="mwx"></span></div>
+        <div id="mbody">
+          <div id="mart"><img id="martimg" alt=""></div>
+          <div id="mlcd">
+            <div id="mlcdtop"><canvas id="mclock" width="340" height="112"></canvas>
+              <div id="mflags"><span id="fshuffle">SHUFFLE</span><span id="frepeat">REPEAT</span><span id="flike">LIKED</span></div></div>
+            <div id="mtitle"><span></span></div><div id="martist"></div><div id="malbum"></div>
+          </div>
+          <div id="mseek"><span id="mpos"></span><div id="mbar"><div id="mfill"></div></div><span id="mdur"></span></div>
+          <div id="mctl"></div>
+          <div id="mstat"><span id="mdev"></span><span id="mmsg"></span></div>
+        </div>
+      </div>
+      <div id="mlib"><div class="mwbar"><span id="mlibtitle"></span></div><div id="mlibwin"><div id="mlist"></div></div><div id="mlibfoot"></div></div>
+    </div>
+    <div id="mtoast"></div>
+  </div>
   <script src="config.js"></script>
   <script src="helpers.js"></script>
   <script src="settings.js"></script>
@@ -176,6 +345,9 @@
   <script src="usage.js"></script>
   <script src="qr.js"></script>
   <script src="bg.js"></script>
+  <script src="viz.js"></script>
+  <script src="player.js"></script>
+  <script src="music.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

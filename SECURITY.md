@@ -65,6 +65,10 @@ What this does **not** protect against:
   inside a folder with mode `700`: readable only by root.
 - They are **never sent to any client** (not to the dashboard, not back to your phone) and never
   written to logs. To change one you enter a new value; to remove one you delete it.
+- One exception, when you connect Spotify: so that the TV itself can play, the dashboard on the TV
+  is handed Spotify's current access token, which expires within an hour. It goes only to the
+  dashboard on the same TV, which passes it to Spotify's own player. The long-lived sign-in
+  (the refresh token) stays in the file like everything else.
 - Settings that are not secret are stored next to them in `settings.json`. Your weather location
   is rounded to one decimal place (about 10 km) before it is saved.
 - Nothing is stored on any TeleDash server. There is no TeleDash server.

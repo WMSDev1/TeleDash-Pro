@@ -39,6 +39,12 @@ var DEFAULTS = {
   tileOrder: "daily",
   pinned: ["com.webos.app.hdmi1", "com.webos.app.home"],
   home: { opensDashboard: false, delaySeconds: 1 },
-  updates: { auto: false }
+  updates: { auto: false },
+  // The Music view (Spotify). tile: show the Music tile; signing in to Spotify on the setup page
+  // turns it on. fadeSeconds: how long after the last button press the artwork and controls fade
+  // (0 = never). fadeTo: percent of full opacity they rest at once faded (0 = gone).
+  // skin: "retro" (a late-90s desktop player), "modern" (the dashboard's own plain style) or
+  // "slim" (one strip along the bottom).
+  music: { tile: false, fadeSeconds: 8, fadeTo: 0, skin: "retro" }
 };
 if (typeof module !== "undefined") module.exports = DEFAULTS;

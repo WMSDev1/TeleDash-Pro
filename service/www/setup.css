@@ -58,6 +58,9 @@ legend .check { margin: 0; }
 .code { padding: 8px; word-break: break-all; user-select: all; -webkit-user-select: all; }
 code { padding: 1px 4px; }
 .state { font-weight: 600; }
+.steps { padding-left: 1.4em; }
+.steps li { margin: 6px 0; }
+.steps .code { margin: 6px 0 0; }
 .msg { min-height: 1.4em; margin: 8px 0 0; }
 .msg.ok { color: var(--ok); }
 .msg.err { color: var(--danger); }

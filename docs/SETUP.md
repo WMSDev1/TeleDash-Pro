@@ -64,6 +64,12 @@ Choose one:
 
 The TV shows today's and tomorrow's events and checks for changes about every 5 minutes.
 
+## Music (Spotify)
+
+Optional. Connect Spotify to get a **Music** tile: what is playing, full screen, with controls
+and your library. It needs Spotify Premium and a free Spotify developer app that you create
+once; the setup page walks you through it. Details: [MUSIC.md](MUSIC.md).
+
 ## 5. Market strip
 
 Shows a few stock indexes. By default: S&P 500 (`^GSPC`), Nasdaq (`^IXIC`) and Dow (`^DJI`).

@@ -26,7 +26,8 @@ var DEFAULTS = {
   tileOrder: "daily",
   pinned: ["com.webos.app.hdmi1", "com.webos.app.home"],
   home: { opensDashboard: false, delaySeconds: 1 },
-  updates: { auto: false }
+  updates: { auto: false },
+  music: { tile: false, fadeSeconds: 8, fadeTo: 0, skin: "retro" }
 };
 
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -233,6 +234,18 @@ var V = {
   updates: function (v, cur) {
     var o = merge(v, cur, "updates", ["auto"]);
     return { auto: bool(o.auto, "updates.auto") };
+  },
+  // The Music view. tile: show the Music tile (Spotify sign-in turns it on). fadeSeconds: how long
+  // after the last button press the artwork and controls fade (0 = never). fadeTo: the percent of
+  // full opacity they rest at once faded (0 = gone, leaving only the visualizer). skin: the look.
+  music: function (v, cur) {
+    var o = merge(v, Object.assign({}, DEFAULTS.music, cur), "music", ["tile", "fadeSeconds", "fadeTo", "skin"]);
+    return {
+      tile: bool(o.tile, "music.tile"),
+      fadeSeconds: int(o.fadeSeconds, "music.fadeSeconds", 0, 600),
+      fadeTo: int(o.fadeTo, "music.fadeTo", 0, 100),
+      skin: oneOf(o.skin, "music.skin", ["retro", "modern", "slim"])
+    };
   }
 };
 

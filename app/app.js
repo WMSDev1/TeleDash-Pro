@@ -43,7 +43,7 @@
     // Always two tight rows of small tiles at the top, so the weather and calendar panels keep
     // their place: more apps add columns (up to 14); anything past 28 tiles is left to All apps.
     cols = Math.max(1, Math.min(14, Math.max(+CONFIG.columns || 6, Math.ceil(list.length / 2))));
-    var nFixed = Helpers.FIXED.length;                       // keep HDMI 1 / Set up / Night / All apps
+    var nFixed = Helpers.FIXED.length + (musicTile() ? 1 : 0);   // keep HDMI 1 / Music / Set up / Night / All apps
     if (list.length > 2 * cols) apps = list.slice(0, 2 * cols - nFixed).concat(list.slice(-nFixed));
     var h = TILE_H, gap = 12;
     grid.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
@@ -78,8 +78,9 @@
 
   // Tile order: re-sorted once a day by time in use (usage.js), remembered for the rest of the day.
   var ORDER_KEY = "teledash.order";
+  function musicTile() { return Music.demo || !!(CONFIG.music && CONFIG.music.tile); }
   function tileList() {
-    var list = Helpers.tiles(CONFIG.apps, tvList), saved = store(ORDER_KEY);
+    var list = Helpers.tiles(CONFIG.apps, tvList, musicTile()), saved = store(ORDER_KEY);
     if (CONFIG.tileOrder === "daily" && saved && saved.mins)
       list = Usage.order(list, saved.mins, Helpers.pinnedIds(CONFIG.apps, CONFIG.pinned));
     return list;
@@ -126,6 +127,7 @@
     if (a.setup) { openSetup(); return; }
     if (a.night) { goNight(); return; }
     if (a.brief) { goBrief(); return; }
+    if (a.music) { openMusic(); return; }
     if (!window.WebOSServiceBridge && !window.PalmServiceBridge) { say("Not running on the TV — would launch " + a.id); return; }
     // Exit tile ("All apps"): tell the kiosk script to let the LG home screen stay, by writing the
     // LG-mode flag as root. The script deletes it as soon as any other app comes to the front.
@@ -192,6 +194,10 @@
   }
   function goIdle() {
     if (overlay) { idleTimer = setTimeout(goIdle, idleMs); return; }   // not while the setup screen is up
+    if (Music.isOpen()) {
+      if (Music.playing()) { idleTimer = setTimeout(goIdle, idleMs); return; }   // never while music plays in the Music view
+      Music.close();                                           // paused and left alone: standby as usual
+    }
     if (isNight()) return;
     if (inMorning()) { showBrief(); return; }
     if (nightHours()) { goNight(); return; }
@@ -247,6 +253,7 @@
     var k = e.keyCode;
     holdIdle = 0;                                              // a real button press always counts
     if (overlay) { e.preventDefault(); wake(); overlayKey(k); return; }
+    if (Music.isOpen()) { e.preventDefault(); wake(); Music.key(k); return; }   // wake(): restarts the idle countdown
     if (wake()) { e.preventDefault(); return; }                // first press only wakes the screen
     if (k >= 37 && k <= 40) moved = true;
     if (k === 37 && focus % cols !== 0) setFocus(focus - 1);                 // left
@@ -257,9 +264,18 @@
     else if (k === 48 || k === 96 || k === 406) openSetup();                 // 0 or the blue key
     else if (k === 403) goNight();                                            // red key: night mode
     else if (k === 404) goBrief();                                            // green key: morning brief
+    else if (k === 405 && musicTile()) openMusic();                           // yellow key: music
     else return;
     e.preventDefault();
   });
+
+  // --- music view (music.js): Spotify full screen; the weather animation rests meanwhile ---
+  function openMusic() {
+    if (overlay) return;
+    setWeatherBackgroundPaused(true);
+    Music.open();
+  }
+  Music.init({ onClose: function () { setWeatherBackgroundPaused(false); wake(); } });
 
   // --- clock ---
   function tick() {
@@ -766,12 +782,19 @@
     setIdleMs();
     buildGrid(tileList());
     tick(); weather(); alerts(); air(); market(); calendar(); feed();
+    startPlayer();                                             // Spotify may just have been signed in
     if (isBrief() && !inMorning() && Date.now() >= briefUntil) goIdle();
     if (!isIdle() && !isBrief()) wake();
   }
   function onStatus(up) {
     setHint(up ? "" : "Setup helper not running");
-    if (up) { calendar(); feed(); dailyOrder(); }
+    if (up) { calendar(); feed(); dailyOrder(); startPlayer(); }
+  }
+  // This TV as a Spotify device (player.js): online whenever Spotify is signed in, so it can be
+  // chosen from a phone. Music that starts here opens the Music view, where it is shown.
+  function startPlayer() {
+    if (Music.demo || !(CONFIG.music && CONFIG.music.tile) || !Settings.serviceUp()) return;
+    Player.start({ onPlay: function () { if (!Music.isOpen() && !overlay) { wake(); openMusic(); } } });
   }
 
   setIdleMs();
@@ -782,12 +805,18 @@
   loadTvApps();
   dailyOrder();
   // The helper's key for /api/local (CONTRACT.md), readable only as root.
-  function readKey(cb) { sh("cat " + DATA + "/local.token 2>/dev/null; true", function (out) { cb(out ? out.replace(/\s+/g, "") : ""); }); }
+  // On a computer there is no root shell: a developer previewing against a helper on the same
+  // machine can keep its key in this browser's storage (teledash.devkey). Never used on a TV.
+  function readKey(cb) {
+    if (!window.WebOSServiceBridge && !window.PalmServiceBridge) { cb(String(store("teledash.devkey") || "")); return; }
+    sh("cat " + DATA + "/local.token 2>/dev/null; true", function (out) { cb(out ? out.replace(/\s+/g, "") : ""); });
+  }
   // Launched with {"idle": true} (after an install at night, for instance): go straight to the
   // idle view instead of waiting for the idle timer. Works for a fresh launch and a relaunch.
   function launchIdle(p) {
     if (typeof p === "string") { try { p = JSON.parse(p || "{}"); } catch (e) { p = {}; } }
     if (p && p.brief) { setTimeout(goBrief, 300); return; }
+    if (p && p.music) { setTimeout(openMusic, 300); return; }
     if (p && p.night) { holdIdle = Date.now() + 10000; [300, 1500, 4000].forEach(function (ms) { setTimeout(function () { if (!isNight()) goNight(); }, ms); }); return; }
     if (!(p && p.idle)) return;
     holdIdle = Date.now() + 10000;
@@ -804,4 +833,16 @@
   if (!isNight()) Settings.night(false);
   helperCheck();
   if (/[?&]setup=demo/.test(location.search)) openSetup();
+  if (Music.demo) openMusic();
+  // Previewing on a computer (no TV service bridge): shrink the 1920x1080 page to fit the window.
+  if (!window.WebOSServiceBridge && !window.PalmServiceBridge) {
+    var fit = function () {
+      var k = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      document.documentElement.style.background = "#000";
+      document.body.style.transformOrigin = "0 0";
+      document.body.style.transform = k < 1 ? "scale(" + k + ")" : "";
+    };
+    window.addEventListener("resize", fit);
+    fit();
+  }
 })();

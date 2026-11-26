@@ -16,9 +16,12 @@ var settings = require("./lib/settings");
 var secrets = require("./lib/secrets");
 var session = require("./lib/session");
 var google = require("./lib/google");
+var spotify = require("./lib/spotify");
 var feed = require("./lib/feed");
 var tv = require("./lib/tv");
 var updates = require("./lib/updates");
+var inspector = require("./lib/inspector");
+var sound = require("./lib/sound");
 var client = require("./lib/http");
 
 var WWW = path.join(__dirname, "www");
@@ -26,6 +29,7 @@ var LOOPBACK = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
 var CACHE_MS = 5 * 60 * 1000;
 var log = util.log;
 var lastGoogleError = null;
+var lastSpotifyError = null;
 
 // ---------- responses ----------
 
@@ -125,7 +129,7 @@ function origin() {
 
 function connected(s) {
   var st = secrets.stored();
-  return { ical: st.icalUrl, google: st.googleSignedIn, feed: !!(s.feed.enabled && s.feed.url) };
+  return { ical: st.icalUrl, google: st.googleSignedIn, spotify: st.spotifySignedIn, feed: !!(s.feed.enabled && s.feed.url) };
 }
 
 // Short-lived caches for upstream reads; any settings or secrets change empties them.
@@ -190,6 +194,26 @@ function usageLog() {
 
 var CORS = { "Access-Control-Allow-Origin": "*" };
 
+// One line of text per 1/30 s of sound (lib/sound.js), for as long as the app keeps the request
+// open. Lines the app is too busy to take are dropped, never queued: old sound is of no use.
+function soundStream(req, res) {
+  var open = true, blocked = false, started = false;
+  var stop = sound.subscribe(function (line) {
+    if (!open || !started || blocked) return;
+    blocked = !res.write(line + "\n");
+  }, function () { if (open) { open = false; res.end(); } });
+  if (!stop) return json(res, 404, { error: "This TV does not offer its sound to apps, so the visualizers cannot follow the music." }, CORS);
+  res.writeHead(200, Object.assign({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }, CORS));
+  if (res.socket && res.socket.setNoDelay) res.socket.setNoDelay(true);
+  started = true;
+  res.on("drain", function () { blocked = false; });
+  // The app closed the request (it left the Music view): stop listening. Not the request's own
+  // "close" event, which newer Node versions send as soon as the request has been read.
+  function gone() { if (open) { open = false; stop(); } }
+  req.on("aborted", gone);
+  res.on("close", gone);
+}
+
 function local(req, res, route, query) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, Object.assign({ "Access-Control-Allow-Methods": "GET, POST", "Access-Control-Allow-Headers": "Content-Type, X-TeleDash-Local", "Access-Control-Max-Age": "600" }, CORS));
@@ -227,6 +251,58 @@ function local(req, res, route, query) {
       return tv.nightPicture(b.on);
     }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
   }
+  // Spotify (CONTRACT.md "Spotify"). Called through the module object so tests can stand in for it.
+  if (key === "GET /api/local/music") {
+    return Promise.resolve().then(function () { return spotify.state(); })
+      .then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  if (key === "POST /api/local/music") {
+    return readJsonBody(req).then(function (b) {
+      if (!util.isObject(b)) throw util.httpError(400, "Send a command such as {\"do\": \"pause\"}.");
+      return spotify.command(b);
+    }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  // The Music view's own Options list: the look and the fade, changed with the remote. The tile
+  // stays with the setup page, which is where signing in turns it on.
+  if (key === "POST /api/local/music/settings") {
+    return readJsonBody(req).then(function (b) {
+      if (!util.isObject(b)) throw util.httpError(400, "Send the options to change, such as {\"skin\": \"modern\"}.");
+      var keys = Object.keys(b);
+      keys.forEach(function (k) {
+        if (["fadeSeconds", "fadeTo", "skin"].indexOf(k) < 0) throw util.httpError(400, "Only fadeSeconds, fadeTo and skin can be changed here.");
+      });
+      if (!keys.length) throw util.httpError(400, "Send the options to change, such as {\"skin\": \"modern\"}.");
+      var r = settings.save({ music: b });
+      afterSettingsSaved(r);
+      return r.settings.music;
+    }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  // Playing on the TV itself (CONTRACT.md "Playing on the TV"): a token for Spotify's player in
+  // the dashboard, the repair that player needs on this TV's browser engine, and the sound the TV
+  // is playing, measured for the visualizers.
+  if (key === "GET /api/local/music/token") {
+    return Promise.resolve().then(function () { return spotify.playerToken(); })
+      .then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  if (key === "POST /api/local/music/player") {
+    return inspector.fixPlayer(config.appId).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
+  if (key === "GET /api/local/music/sound") return soundStream(req, res);
+  if (key === "GET /api/local/music/list") {
+    return Promise.resolve().then(function () {
+      var kind = query.get("kind");
+      if (!kind) throw util.httpError(400, "Say which list: kind=playlists, albums, liked, recent, playlist, album, queue, devices or search.");
+      var opts = { id: undefined, offset: undefined, q: undefined };
+      var off = query.get("offset");
+      if (off !== null) {
+        if (!/^\d{1,6}$/.test(off) || parseInt(off, 10) > 100000) throw util.httpError(400, "offset must be a whole number from 0 to 100000.");
+        opts.offset = parseInt(off, 10);
+      }
+      if (query.get("id") !== null) opts.id = query.get("id");
+      if (query.get("q") !== null) opts.q = query.get("q");
+      return spotify.list(kind, opts);
+    }).then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
+  }
   if (key === "GET /api/local/usage") return send(res, 200, usageLog(), "text/plain; charset=utf-8", CORS);
   if (key === "POST /api/local/update") {
     return updates.startUpdate().then(function (r) { json(res, 200, r, CORS); }, function (e) { fail(res, e, CORS); });
@@ -240,7 +316,8 @@ function statusView() {
   var s = settings.load();
   return {
     version: config.version, connected: connected(s), stored: secrets.stored(), update: updates.status(),
-    google: { available: !!config.pagesBase, builtIn: !!config.googleClient, redirectUri: config.pagesBase ? google.redirectUri(config.pagesBase) : null, lastError: lastGoogleError }
+    google: { available: !!config.pagesBase, builtIn: !!config.googleClient, redirectUri: config.pagesBase ? google.redirectUri(config.pagesBase) : null, lastError: lastGoogleError },
+    spotify: { available: !!config.pagesBase, redirectUri: config.pagesBase ? spotify.redirectUri(config.pagesBase) : null, lastError: lastSpotifyError }
   };
 }
 
@@ -284,6 +361,7 @@ function setup(req, res, route) {
     return readJsonBody(req).then(function (patch) {
       secrets.save(patch, feed.originOf(settings.load().feed.url));
       if (patch.google) lastGoogleError = null;
+      if (patch.spotify) lastSpotifyError = null;
       invalidate();
       json(res, 200, { ok: true });
     }).catch(function (e) { fail(res, e); });
@@ -297,6 +375,8 @@ function setup(req, res, route) {
       if ((del[1] === "icalUrl" && src === "ical") || (del[1] === "google" && src === "google")) {
         afterSettingsSaved(settings.save({ calendar: { source: "none" } }));
       }
+      // Without its sign-in the Music tile could only show an error: hide it.
+      if (del[1] === "spotify") afterSettingsSaved(settings.save({ music: { tile: false } }));
       invalidate();
       return json(res, 200, { ok: true });
     } catch (e) { return fail(res, e); }
@@ -305,6 +385,12 @@ function setup(req, res, route) {
     try {
       var r = google.start(origin(), config.pagesBase);
       return json(res, 200, { authUrl: r.authUrl });
+    } catch (e) { return fail(res, e); }
+  }
+  if (key === "POST /api/spotify/start") {
+    try {
+      var sr = spotify.start(origin(), config.pagesBase);
+      return json(res, 200, { authUrl: sr.authUrl });
     } catch (e) { return fail(res, e); }
   }
   // Not in the contract's table: the phone cannot reach /api/local/update, so "Update now" on
@@ -374,6 +460,18 @@ function handle(req, res) {
     if (STATIC[route]) return serveFile(res, STATIC[route][0], STATIC[route][1]);
     if (route === "/oauth/return") {
       var q = { code: u.searchParams.get("code"), state: u.searchParams.get("state"), error: u.searchParams.get("error") };
+      // Both sign-ins come back through the same Pages relay; the state's nonce says whose it is.
+      if (spotify.owns(q.state)) {
+        return Promise.resolve().then(function () { return spotify.finish(q, config.pagesBase); }).then(function () {
+          lastSpotifyError = null;
+          invalidate();
+          redirect(res, "/setup?spotify=ok");
+        }, function (e) {
+          lastSpotifyError = e && e.expose ? e.message : "Spotify sign-in did not complete.";
+          if (!e || !e.expose) log("spotify sign-in: " + (e && e.message));
+          redirect(res, "/setup?spotify=error");
+        });
+      }
       return google.finish(q, config.pagesBase).then(function () {
         lastGoogleError = null;
         invalidate();

@@ -102,7 +102,7 @@ t.test("local endpoints answer loopback with CORS", function () {
     assert.strictEqual(r.headers["access-control-allow-origin"], "*");
     assert.strictEqual(r.json.version, "1.2.3");
     assert.strictEqual(r.json.settings.rev, 0);
-    assert.deepStrictEqual(r.json.connected, { ical: false, google: false, feed: false });
+    assert.deepStrictEqual(r.json.connected, { ical: false, google: false, spotify: false, feed: false });
     assert.deepStrictEqual(r.json.update, { current: "1.2.3", latest: null, available: false, auto: false });
     return req("OPTIONS", "/api/local/pair");
   }).then(function (r) {
@@ -265,7 +265,7 @@ t.test("secrets are write-only and never echoed", function () {
     rs.forEach(function (r) {
       assert.ok(r.text.indexOf(SECRET) < 0 && r.text.indexOf(TOKEN) < 0, "secret leaked in " + r.text.slice(0, 80));
     });
-    assert.deepStrictEqual(rs[1].json.stored, { icalUrl: true, googleClient: false, googleSignedIn: false, feedToken: true });
+    assert.deepStrictEqual(rs[1].json.stored, { icalUrl: true, googleClient: false, googleSignedIn: false, spotifyClient: false, spotifySignedIn: false, feedToken: true });
     assert.strictEqual(rs[2].json.connected.ical, true);
     assert.ok(proc.output.indexOf(SECRET) < 0 && proc.output.indexOf(TOKEN) < 0, "secret in the log");
     return req("POST", "/api/secrets", Object.assign({ body: { icalUrl: "http://calendar.example.com/x.ics" } }, o));
@@ -386,6 +386,344 @@ t.test("sessions survive a service restart", function () {
 });
 
 t.test("stop the server", function () { proc.kill(); });
+
+// ---------- Spotify routes ----------
+// The spotify module is replaced function by function, so these run the server in this process
+// (same data dir, so the session cookie from above still works) instead of the child above.
+// Nothing reaches Spotify.
+var PAGES = "https://example.github.io/teledash-pro";
+var SPOTIFY_ID = "0123456789abcdef0123456789abcdef";
+var spotify, config, inproc, calls = [], realSpotify = {};
+function stub(fns) {
+  Object.keys(fns).forEach(function (k) {
+    if (!Object.prototype.hasOwnProperty.call(realSpotify, k)) realSpotify[k] = spotify[k];
+    spotify[k] = fns[k];
+  });
+}
+function unstub() { Object.keys(realSpotify).forEach(function (k) { spotify[k] = realSpotify[k]; }); realSpotify = {}; calls = []; }
+
+t.test("spotify: start an in-process server", function () {
+  spotify = require("../lib/spotify");
+  config = require("../lib/config");
+  config.pagesBase = PAGES;
+  var handle = require("../server").handle;
+  return freePort().then(function (p) {
+    port = p;
+    return new Promise(function (resolve) { inproc = http.createServer(handle).listen(port, resolve); });
+  });
+});
+
+t.test("spotify: local music routes call the module and answer with CORS", function () {
+  stub({
+    state: function () { calls.push(["state"]); return Promise.resolve({ connected: false }); },
+    command: function (b) { calls.push(["command", b]); return Promise.resolve({ ok: true }); },
+    list: function (kind, opts) { calls.push(["list", kind, opts]); return Promise.resolve({ items: [], next: null }); }
+  });
+  return req("GET", "/api/local/music").then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    assert.deepStrictEqual(r.json, { connected: false });
+    return req("POST", "/api/local/music", { body: { do: "pause" } });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { ok: true });
+    return req("GET", "/api/local/music/list?kind=playlist&id=abc&offset=50&q=x%20y");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    assert.deepStrictEqual(r.json, { items: [], next: null });
+    return req("GET", "/api/local/music/list?kind=playlists");
+  }).then(function () {
+    assert.deepStrictEqual(calls, [
+      ["state"], ["command", { do: "pause" }],
+      ["list", "playlist", { id: "abc", offset: 50, q: "x y" }],
+      ["list", "playlists", { id: undefined, offset: undefined, q: undefined }]
+    ]);
+    assert.strictEqual(typeof calls[2][2].offset, "number");
+    return req("OPTIONS", "/api/local/music");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 204);
+    assert.ok(/POST/.test(r.headers["access-control-allow-methods"]));
+    assert.ok(/X-TeleDash-Local/.test(r.headers["access-control-allow-headers"]));
+  }).then(unstub, function (e) { unstub(); throw e; });
+});
+
+t.test("spotify: local music routes refuse bad input before the module sees it", function () {
+  stub({
+    command: function (b) { calls.push(["command", b]); return Promise.resolve({ ok: true }); },
+    list: function (kind) { calls.push(["list", kind]); return Promise.resolve({ items: [], next: null }); }
+  });
+  var bad = ["kind=liked&offset=-1", "kind=liked&offset=1.5", "kind=liked&offset=abc", "kind=liked&offset=100001", "kind=liked&offset=", "offset=0"];
+  return Promise.all(bad.map(function (qs) { return req("GET", "/api/local/music/list?" + qs); })).then(function (rs) {
+    rs.forEach(function (r, i) {
+      assert.strictEqual(r.status, 400, bad[i]);
+      assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    });
+    assert.ok(/Say which list: kind=/.test(rs[5].json.error));
+    return Promise.all([
+      req("POST", "/api/local/music", { body: "pause" }),
+      req("POST", "/api/local/music", { body: ["pause"] }),
+      req("GET", "/api/local/music/list?kind=liked&offset=100000")
+    ]);
+  }).then(function (rs) {
+    assert.strictEqual(rs[0].status, 400);
+    assert.strictEqual(rs[1].status, 400);
+    assert.strictEqual(rs[2].status, 200, "100000 is allowed");
+    assert.deepStrictEqual(calls, [["list", "liked"]]);
+  }).then(unstub, function (e) { unstub(); throw e; });
+});
+
+t.test("music options: the TV app changes the look and the fade, and nothing else", function () {
+  return req("POST", "/api/local/music/settings", { body: { skin: "slim", fadeSeconds: 30 } }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    assert.strictEqual(r.json.skin, "slim");
+    assert.strictEqual(r.json.fadeSeconds, 30);
+    return Promise.all([
+      req("POST", "/api/local/music/settings", { body: { tile: true } }),
+      req("POST", "/api/local/music/settings", { body: { skin: "neon" } }),
+      req("POST", "/api/local/music/settings", { body: {} }),
+      req("POST", "/api/local/music/settings", { body: ["slim"] }),
+      req("POST", "/api/local/music/settings", { noKey: true, body: { skin: "retro" } })
+    ]);
+  }).then(function (rs) {
+    assert.strictEqual(rs[0].status, 400);
+    assert.ok(/Only fadeSeconds, fadeTo and skin/.test(rs[0].json.error));
+    assert.strictEqual(rs[1].status, 400);
+    assert.strictEqual(rs[2].status, 400);
+    assert.strictEqual(rs[3].status, 400);
+    assert.strictEqual(rs[4].status, 403);
+    return req("POST", "/api/local/music/settings", { body: { skin: "retro", fadeSeconds: 8 } });
+  }).then(function (r) {
+    assert.strictEqual(r.json.skin, "retro");
+  });
+});
+
+t.test("playing on the TV: token, repair and sound routes", function () {
+  var inspector = require("../lib/inspector"), sound = require("../lib/sound");
+  var realFix = inspector.fixPlayer, realSubscribe = sound.subscribe, fixedFor = [], stopped = 0;
+  function restore() { inspector.fixPlayer = realFix; sound.subscribe = realSubscribe; unstub(); }
+  stub({ playerToken: function () { calls.push(["playerToken"]); return Promise.resolve({ token: "tok", expires: 123 }); } });
+  inspector.fixPlayer = function (appId) { fixedFor.push(appId); return Promise.resolve({ available: true, fixed: 1 }); };
+  sound.subscribe = function (onLine, onEnd) {
+    setTimeout(function () { onLine("aa"); onLine("-"); onEnd(); }, 20);
+    return function () { stopped++; };
+  };
+  return req("GET", "/api/local/music/token").then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { token: "tok", expires: 123 });
+    assert.strictEqual(r.headers["cache-control"], "no-store");
+    return req("POST", "/api/local/music/player", { body: {} });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { available: true, fixed: 1 });
+    assert.deepStrictEqual(fixedFor, [config.appId], "only ever this app's own page");
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.text, "aa\n-\n", "one line of text per measurement, until the recorder stops");
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    // A stream that outlives the request's arrival by a while: every line still gets through.
+    sound.subscribe = function (onLine, onEnd) {
+      var n = 0, timer = setInterval(function () { onLine("line" + (++n)); if (n === 12) { clearInterval(timer); onEnd(); } }, 25);
+      return function () { stopped++; clearInterval(timer); };
+    };
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.text.split("\n").filter(Boolean).length, 12, r.text);
+    assert.strictEqual(stopped, 0, "the recorder ended it, not the app");
+    // The app leaves the Music view: it closes the request, and the helper stops listening.
+    sound.subscribe = function (onLine) {
+      var timer = setInterval(function () { onLine("-"); }, 25);
+      return function () { stopped++; clearInterval(timer); };
+    };
+    return new Promise(function (resolve, reject) {
+      var r = http.request({ host: "127.0.0.1", port: port, path: "/api/local/music/sound", headers: { "X-TeleDash-Local": localKey() } }, function (res) {
+        res.once("data", function () { r.abort(); setTimeout(resolve, 150); });
+        res.on("error", function () {});
+      });
+      r.on("error", function () {});
+      r.end();
+      setTimeout(function () { reject(new Error("the sound stream never started")); }, 3000);
+    });
+  }).then(function () {
+    assert.strictEqual(stopped, 1, "closing the request stops the listening");
+    sound.subscribe = function () { return null; };             // a TV (or a computer) with no sound to offer
+    return req("GET", "/api/local/music/sound");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 404);
+    assert.ok(/does not offer its sound/.test(r.json.error));
+    stub({ playerToken: function () { return Promise.reject(util.httpError(409, "To play music on this TV itself, sign in to Spotify again on the setup page.")); } });
+    return req("GET", "/api/local/music/token");
+  }).then(function (r) {
+    assert.strictEqual(r.status, 409);
+    assert.ok(/sign in to Spotify again/.test(r.json.error));
+    // None of the three is for anyone but the dashboard on this TV.
+    fixedFor = []; calls = [];
+    sound.subscribe = function () { calls.push(["subscribe"]); return function () {}; };
+    return Promise.all([
+      req("GET", "/api/local/music/token", { noKey: true }),
+      req("POST", "/api/local/music/player", { noKey: true, body: {} }),
+      req("GET", "/api/local/music/sound", { noKey: true }),
+      req("GET", "/api/local/music/token", { headers: { Host: "rebind.example:" + port } })
+    ]);
+  }).then(function (rs) {
+    assert.deepStrictEqual(rs.map(function (r) { return r.status; }), [403, 403, 403, 403]);
+    assert.deepStrictEqual([fixedFor, calls], [[], []]);
+  }).then(restore, function (e) { restore(); throw e; });
+});
+
+t.test("spotify: local music routes need the key and loopback", function () {
+  stub({ state: function () { calls.push(["state"]); return Promise.resolve({ connected: true }); } });
+  return req("GET", "/api/local/music", { noKey: true }).then(function (r) {
+    assert.strictEqual(r.status, 403);
+    assert.strictEqual(r.headers["access-control-allow-origin"], "*");
+    return req("POST", "/api/local/music", { noKey: true, headers: { "X-TeleDash-Local": "wrong" }, body: { do: "pause" } });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 403);
+    return req("GET", "/api/local/music/list?kind=liked", { headers: { Host: "rebind.example:" + port } });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 403, "host allow-list still applies");
+    if (!LAN) return;
+    return req("GET", "/api/local/music", { host: LAN }).then(function (r2) {
+      assert.strictEqual(r2.status, 403);
+      assert.ok(/Only the TV itself/.test(r2.json.error));
+    });
+  }).then(function () { assert.deepStrictEqual(calls, []); })
+    .then(unstub, function (e) { unstub(); throw e; });
+});
+
+t.test("spotify: module errors reach the app with their status and message", function () {
+  stub({
+    state: function () { return Promise.reject(util.httpError(409, "No Spotify device is active.")); },
+    command: function () { return Promise.reject(util.httpError(403, "Spotify Premium is needed.")); },
+    list: function () { return Promise.reject(util.httpError(400, "Unknown list: nope.")); }
+  });
+  return Promise.all([
+    req("GET", "/api/local/music"),
+    req("POST", "/api/local/music", { body: { do: "play" } }),
+    req("GET", "/api/local/music/list?kind=nope")
+  ]).then(function (rs) {
+    assert.deepStrictEqual(rs.map(function (r) { return [r.status, r.json.error, r.headers["access-control-allow-origin"]]; }), [
+      [409, "No Spotify device is active.", "*"], [403, "Spotify Premium is needed.", "*"], [400, "Unknown list: nope.", "*"]
+    ]);
+  }).then(unstub, function (e) { unstub(); throw e; });
+});
+
+t.test("spotify: status, state and start", function () {
+  if (!cookie) return;
+  var o = { host: LAN, cookie: cookie, write: true };
+  stub({
+    start: function (origin, pagesBase) {
+      calls.push(["start", origin, pagesBase]);
+      return { authUrl: "https://accounts.spotify.com/authorize?client_id=" + SPOTIFY_ID, state: "example-state" };
+    }
+  });
+  return req("GET", "/api/status", o).then(function (r) {
+    assert.deepStrictEqual(r.json.spotify, { available: true, redirectUri: PAGES + "/oauth/", lastError: null });
+    assert.strictEqual(r.json.stored.spotifyClient, false);
+    assert.strictEqual(r.json.stored.spotifySignedIn, false);
+    assert.strictEqual(r.json.connected.spotify, false);
+    return req("POST", "/api/spotify/start", { host: LAN, cookie: cookie });
+  }).then(function (r) {
+    assert.strictEqual(r.status, 403, "X-TeleDash still required");
+    return req("POST", "/api/spotify/start", o);
+  }).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.deepStrictEqual(r.json, { authUrl: "https://accounts.spotify.com/authorize?client_id=" + SPOTIFY_ID });
+    assert.deepStrictEqual(calls, [["start", "http://" + LAN + ":" + config.port, PAGES]]);
+    spotify.start = function () { throw util.httpError(400, "Save your Spotify client ID first."); };
+    return req("POST", "/api/spotify/start", o);
+  }).then(function (r) {
+    assert.strictEqual(r.status, 400);
+    assert.strictEqual(r.json.error, "Save your Spotify client ID first.");
+    // A signed-in account (tokens written the way spotify.finish would) shows in both views.
+    require("../lib/secrets").saveSpotify({ clientId: SPOTIFY_ID, refreshToken: "example-refresh" });
+    return Promise.all([req("GET", "/api/status", o), req("GET", "/api/local/state")]);
+  }).then(function (rs) {
+    assert.strictEqual(rs[0].json.stored.spotifyClient, true);
+    assert.strictEqual(rs[0].json.stored.spotifySignedIn, true);
+    assert.strictEqual(rs[0].json.connected.spotify, true);
+    assert.strictEqual(rs[1].json.connected.spotify, true);
+    assert.ok(rs[0].text.indexOf("example-refresh") < 0 && rs[1].text.indexOf("example-refresh") < 0, "token leaked");
+    config.pagesBase = "";
+    return req("GET", "/api/status", o);
+  }).then(function (r) {
+    assert.deepStrictEqual(r.json.spotify, { available: false, redirectUri: null, lastError: null });
+  }).then(function () { config.pagesBase = PAGES; unstub(); }, function (e) { config.pagesBase = PAGES; unstub(); throw e; });
+});
+
+t.test("spotify: /oauth/return goes to Spotify only when it owns the state", function () {
+  if (!cookie) return;
+  var o = { host: LAN, cookie: cookie, write: true };
+  var outcome = Promise.resolve();
+  stub({
+    owns: function (state) { calls.push(["owns", state]); return state === "sp-state"; },
+    finish: function (q, pagesBase) { calls.push(["finish", q, pagesBase]); return outcome; }
+  });
+  return req("GET", "/oauth/return?code=c1&state=sp-state", { host: LAN }).then(function (r) {
+    assert.strictEqual(r.status, 302);
+    assert.strictEqual(r.headers.location, "/setup?spotify=ok");
+    assert.deepStrictEqual(calls, [["owns", "sp-state"], ["finish", { code: "c1", state: "sp-state", error: null }, PAGES]]);
+    outcome = Promise.reject(util.httpError(400, "Spotify sign-in was cancelled."));
+    outcome.catch(function () {});
+    return req("GET", "/oauth/return?error=access_denied&state=sp-state", { host: LAN });
+  }).then(function (r) {
+    assert.strictEqual(r.headers.location, "/setup?spotify=error");
+    return req("GET", "/api/status", o);
+  }).then(function (r) {
+    assert.strictEqual(r.json.spotify.lastError, "Spotify sign-in was cancelled.");
+    assert.strictEqual(r.json.google.lastError === "Spotify sign-in was cancelled.", false, "Google's error untouched");
+    outcome = Promise.reject(new Error("socket hang up"));
+    outcome.catch(function () {});
+    return req("GET", "/oauth/return?code=c2&state=sp-state", { host: LAN });
+  }).then(function (r) {
+    assert.strictEqual(r.headers.location, "/setup?spotify=error");
+    return req("GET", "/api/status", o);
+  }).then(function (r) {
+    assert.strictEqual(r.json.spotify.lastError, "Spotify sign-in did not complete.", "internal errors are not shown");
+    // Saving a client ID clears the last error, as for Google.
+    return req("POST", "/api/secrets", Object.assign({ body: { spotify: { clientId: SPOTIFY_ID } } }, o));
+  }).then(function (r) {
+    assert.deepStrictEqual(r.json, { ok: true });
+    return req("GET", "/api/status", o);
+  }).then(function (r) {
+    assert.strictEqual(r.json.spotify.lastError, null);
+    calls = [];
+    // Not Spotify's state: Google's path, unchanged (an unknown state is refused there).
+    return req("GET", "/oauth/return?code=c3&state=not-ours", { host: LAN });
+  }).then(function (r) {
+    assert.strictEqual(r.headers.location, "/setup?google=error");
+    assert.deepStrictEqual(calls, [["owns", "not-ours"]], "spotify.finish not called");
+    return req("GET", "/api/status", o);
+  }).then(function (r) {
+    assert.ok(/expired or was already used/.test(r.json.google.lastError));
+    assert.strictEqual(r.json.spotify.lastError, null);
+  }).then(unstub, function (e) { unstub(); throw e; });
+});
+
+t.test("spotify: removing the secret turns the Music tile off", function () {
+  if (!cookie) return;
+  var o = { host: LAN, cookie: cookie, write: true };
+  return req("PUT", "/api/settings", Object.assign({ body: { music: { tile: true, fadeSeconds: 20 } } }, o)).then(function (r) {
+    assert.strictEqual(r.status, 200, r.text);
+    assert.strictEqual(r.json.music.tile, true);
+    return req("POST", "/api/secrets", Object.assign({ body: { spotify: { clientId: SPOTIFY_ID } } }, o));
+  }).then(function () {
+    return req("DELETE", "/api/secrets/spotify", o);
+  }).then(function (r) {
+    assert.deepStrictEqual(r.json, { ok: true });
+    return Promise.all([req("GET", "/api/settings", o), req("GET", "/api/status", o)]);
+  }).then(function (rs) {
+    assert.deepStrictEqual(rs[0].json.music, { tile: false, fadeSeconds: 20, fadeTo: 0, skin: "retro" });
+    assert.strictEqual(rs[1].json.stored.spotifyClient, false);
+    assert.strictEqual(rs[1].json.stored.spotifySignedIn, false);
+  });
+});
+
+t.test("spotify: stop the in-process server", function () {
+  return new Promise(function (resolve) { inproc.close(resolve); });
+});
 
 process.on("exit", function () { if (proc) try { proc.kill(); } catch (e) { /* gone */ } });
 t.run();
